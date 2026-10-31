@@ -5,7 +5,7 @@ Trains the ST-GNN using:
 - Weighted MSE Loss (penalty is 10x higher for flooded nodes so the AI doesn't ignore floods)
 - Early stopping based on validation loss
 - Fixed random seed for reproducibility
-- Saves best checkpoint to models/best.pt and metadata to models/best_meta.json
+- Saves best checkpoint to models/best.pt (or kurla_best.pt) and metadata
 - Saves training curve chart to results/training_curve.png
 """
 
@@ -45,6 +45,9 @@ def train_stgnn(
     patience: int = 4,
     batch_size: int = 64,
     device: str = "cpu",
+    model_save_path: str = None,
+    meta_save_path: str = None,
+    curve_save_path: str = None,
 ):
     # Fix seed
     torch.manual_seed(SEED)
@@ -53,13 +56,18 @@ def train_stgnn(
     Path("models").mkdir(parents=True, exist_ok=True)
     Path("results").mkdir(parents=True, exist_ok=True)
 
+    is_kurla = "kurla" in str(data_dir).lower()
+    best_model_path = Path(model_save_path) if model_save_path else (Path("models/kurla_best.pt") if is_kurla else Path("models/best.pt"))
+    meta_path = Path(meta_save_path) if meta_save_path else (Path("models/kurla_meta.json") if is_kurla else Path("models/best_meta.json"))
+    curve_path = Path(curve_save_path) if curve_save_path else (Path("results/kurla_training_curve.png") if is_kurla else Path("results/training_curve.png"))
+
     # 1. Load data & graph
     print(f"Loading data and graph from {data_dir}...")
     nodes, edges = load_graph(data_dir)
     adj_np = build_adjacency(nodes, edges)
     adj_tensor = torch.from_numpy(adj_np).float().to(device)
 
-    loaders, meta = build_loaders(data_dir, batch_size=batch_size)
+    loaders, meta = build_loaders(data_dir, batch_size=batch_size, save_split=not is_kurla)
     num_nodes = meta["N"]
 
     # 2. Initialize Model
@@ -79,9 +87,8 @@ def train_stgnn(
     val_losses = []
     best_val_loss = float("inf")
     patience_counter = 0
-    best_model_path = Path("models/best.pt")
 
-    print(f"Starting training ST-GNN (hidden={hidden_dim}, max_epochs={epochs}, flood_weight={flood_weight})...\n")
+    print(f"Starting training ST-GNN for {data_dir} (N={num_nodes}, hidden={hidden_dim}, max_epochs={epochs}, flood_weight={flood_weight})...\n")
 
     for epoch in range(1, epochs + 1):
         # ── Train loop ────────────────────────────────────────────────────────
@@ -142,11 +149,10 @@ def train_stgnn(
     ax.plot(range(1, len(val_losses) + 1), val_losses, label="Val Loss (Weighted MSE)", color="#ff7f0e", lw=2)
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
-    ax.set_title("ST-GNN Training Curve")
+    ax.set_title(f"ST-GNN Training Curve ({data_dir})")
     ax.grid(True, linestyle="--", alpha=0.6)
     ax.legend()
     plt.tight_layout()
-    curve_path = Path("results/training_curve.png")
     fig.savefig(curve_path, dpi=150)
     plt.close(fig)
     print(f"Training curve chart saved -> {curve_path}")
@@ -171,14 +177,13 @@ def train_stgnn(
     val_flood_metrics = evaluate_flooded_only(val_preds, val_trues)
 
     print("\n" + "="*50)
-    print("ST-GNN VALIDATION PERFORMANCE")
+    print(f"ST-GNN VALIDATION PERFORMANCE ({data_dir})")
     print("="*50)
     for lead in ["1h", "2h", "3h"]:
         m = val_metrics[lead]
         print(f"[{lead}] MAE: {m['mae_cm']:.2f} cm | RMSE: {m['rmse_cm']:.2f} cm | Flood F1: {m['f1']:.4f} | Recall: {m['recall']:.4f} | Precision: {m['precision']:.4f}")
 
-    # 5. Save best_meta.json
-    meta_path = Path("models/best_meta.json")
+    # 5. Save metadata
     save_meta = {
         "model_type": "ST-GNN",
         "num_nodes": num_nodes,

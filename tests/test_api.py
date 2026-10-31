@@ -54,10 +54,11 @@ def test_predict_endpoint_contract():
     assert resp_sample.status_code == 200
     assert len(resp_sample.json()["nodes"]) == 200
 
-    # Test Kurla area fallback
+    # Test Kurla area (dedicated ST-GNN model inference)
     resp_kurla = client.post("/predict", json={"area": "kurla", "scenario": "heavy"})
     assert resp_kurla.status_code == 200
     assert len(resp_kurla.json()["nodes"]) == 91
+    assert resp_kurla.json()["source"] == "model"
 
 
 def test_optimize_endpoint_contract():

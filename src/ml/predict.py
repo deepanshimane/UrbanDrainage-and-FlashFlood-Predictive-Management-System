@@ -4,6 +4,7 @@ Follows CONTRACT.md:
 predict(nodes, edges, recent, model_path="models/best.pt")
 Returns PREDICTION JSON dict.
 Caches model in memory for sub-second responses.
+Supports multiple catchment models (Hindmata N=89, Kurla N=91).
 """
 
 import json
@@ -16,13 +17,8 @@ import torch
 from src.common.io import build_adjacency, load_graph, load_dataset
 from src.ml.model import STGNN
 
-# Module-level cache for high performance
-_CACHE = {
-    "model_path": None,
-    "model": None,
-    "meta": None,
-    "adj": None,
-}
+# Multi-model cache: key -> {"model": model, "meta": meta, "adj": adj}
+_MODELS_CACHE = {}
 
 LEAD_INDICES = {
     "1h": 3,   # 4th step (index 3)
@@ -33,14 +29,25 @@ LEAD_INDICES = {
 
 def _load_cached_model(nodes: pd.DataFrame, edges: pd.DataFrame, model_path: str = "models/best.pt"):
     """Load model and metadata once, caching for future calls."""
-    global _CACHE
+    global _MODELS_CACHE
     model_path = str(model_path)
-
-    if _CACHE["model"] is not None and _CACHE["model_path"] == model_path:
-        return _CACHE["model"], _CACHE["meta"]
-
+    num_nodes = len(nodes)
     p = Path(model_path)
-    meta_path = p.parent / "best_meta.json"
+
+    # Auto-route Kurla (N=91) to kurla_best.pt if available
+    if num_nodes == 91 and (p.name == "best.pt" or "kurla" in model_path.lower()):
+        kurla_path = p.parent / "kurla_best.pt"
+        if kurla_path.exists():
+            model_path = str(kurla_path)
+            p = Path(model_path)
+
+    cache_key = f"{model_path}:{num_nodes}"
+    if cache_key in _MODELS_CACHE:
+        entry = _MODELS_CACHE[cache_key]
+        return entry["model"], entry["meta"]
+
+    meta_name = "kurla_meta.json" if ("kurla" in model_path.lower() or num_nodes == 91) else "best_meta.json"
+    meta_path = p.parent / meta_name
     if not meta_path.exists():
         # Fallback to default metadata
         meta = {
@@ -52,7 +59,6 @@ def _load_cached_model(nodes: pd.DataFrame, edges: pd.DataFrame, model_path: str
         with open(meta_path) as f:
             meta = json.load(f)
 
-    num_nodes = len(nodes)
     adj_np = build_adjacency(nodes, edges)
     adj_tensor = torch.from_numpy(adj_np).float()
 
@@ -70,10 +76,11 @@ def _load_cached_model(nodes: pd.DataFrame, edges: pd.DataFrame, model_path: str
     model.load_state_dict(state_dict)
     model.eval()
 
-    _CACHE["model_path"] = model_path
-    _CACHE["model"] = model
-    _CACHE["meta"] = meta
-    _CACHE["adj"] = adj_tensor
+    _MODELS_CACHE[cache_key] = {
+        "model": model,
+        "meta": meta,
+        "adj": adj_tensor,
+    }
 
     return model, meta
 

@@ -89,14 +89,15 @@ def list_areas(base_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
     kurla_path = d / "kurla"
     if kurla_path.exists():
         has_nodes = (kurla_path / "nodes.csv").exists()
+        has_kurla_model = (REPO_ROOT / "models" / "kurla_best.pt").exists()
         results.append({
             "name": "kurla",
             "display_name": "Mumbai: Kurla-Mithi River (Scalability Area)",
             "format": "areaA",
-            "model_compatible": False,
+            "model_compatible": has_kurla_model,
             "dt_seconds": 600.0,
             "status": "ready" if has_nodes else "incomplete",
-            "reason": "Scalability evaluation area (N=91). ST-GNN specialized for Hindmata (N=89).",
+            "reason": "" if has_kurla_model else "Scalability evaluation area (N=91).",
         })
     else:
         results.append({
@@ -290,12 +291,12 @@ def load_area(name: str, base_dir: Optional[Path] = None) -> Tuple[Optional[Data
                 fill=fill,
                 dt_seconds=600.0,
                 T=T, N=N, E=E, S=S,
-                is_model_compatible=False,
-                incompatible_reason="Scalability validation area (N=91). ST-GNN model is trained on Hindmata (N=89).",
+                is_model_compatible=(REPO_ROOT / "models" / "kurla_best.pt").exists(),
+                incompatible_reason="" if (REPO_ROOT / "models" / "kurla_best.pt").exists() else "ST-GNN weights not found",
                 known_spots=known_spots,
                 pumps=pumps,
                 scenarios=scenarios,
-                notes=["Secondary Mumbai catchment: Kurla / Mithi River (N=91, E=126, 3 pumps). Demonstrates cross-ward scalability."],
+                notes=["Secondary Mumbai catchment: Kurla / Mithi River (N=91, E=126, 3 pumps). Demonstrates cross-ward scalability with dedicated trained ST-GNN."],
             )
             return ds, None
         except Exception as e:

@@ -156,7 +156,7 @@ def test_load_kurla_area():
     assert ds.N == 91
     assert ds.E == 126
     assert ds.S == 106
-    assert ds.is_model_compatible is False
+    assert ds.is_model_compatible is True
 
 
 def test_get_landmark_for_node():
