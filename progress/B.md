@@ -2,9 +2,9 @@
 
 The AI updates this file after every step. Do not delete the table.
 
-**Overall progress: 68%**
+**Overall progress: 84%**
 **Last updated:** 2026-10-31
-**Right now working on:** B7
+**Right now working on:** B10 (preparing scenarios; B9 blocked on Person A's real dataset)
 
 | Step | What it is (simple words) | Weight | Status | Result / number |
 |---|---|---|---|---|
@@ -15,9 +15,9 @@ The AI updates this file after every step. Do not delete the table.
 | B4 | Build and train the main graph AI model (ST-GNN) | 20 | DONE | F1: 0.44/0.32/0.15, MAE: 2.3/2.7/4.1 cm (beats no-graph by 2x) |
 | B5 | Write `predict.py` so Person C can use my model | 10 | DONE | PREDICTION JSON format verified, cached, tests passed |
 | B6 | Make the evaluation report with tables and charts | 8 | DONE | Test F1 0.41/0.31/0.16, MAE 2.0/2.6/4.1 cm, 4 charts & report |
-| B7 | Optimizer v1: simple pump rules | 8 | TODO | |
-| B8 | Optimizer v2: search many schedules, show before/after | 8 | TODO | |
-| B9 | Swap in Person A's REAL dataset and retrain | 6 | TODO | |
+| B7 | Optimizer v1: simple pump rules | 8 | DONE | Rules cut flood cost by 27.3% to 69.2% on test storms |
+| B8 | Optimizer v2: search many schedules, show before/after | 8 | DONE | Search beats rules: 29.1% to 75.9% flood cost reduction |
+| B9 | Swap in Person A's REAL dataset and retrain | 6 | TODO | Waiting on Person A for data/<area_name>/ |
 | B10 | Final numbers for 3 scenarios (light, heavy, extreme) | 5 | TODO | |
 | B11 | Test on a second area and write handoff notes for the pitch | 5 | TODO | |
 
@@ -26,9 +26,9 @@ Status values: TODO, IN PROGRESS, DONE, BLOCKED.
 ## Key numbers (fill in as we go; these go into the pitch)
 - Baseline 1 (persistence) flood F1 at +1h / +2h / +3h: 0.701 / 0.505 / 0.367
 - Baseline 2 (no-graph model) flood F1 at +1h / +2h / +3h: 0.269 / 0.144 / 0.068
-- ST-GNN flood F1 at +1h / +2h / +3h: 0.437 / 0.323 / 0.147
-- ST-GNN MAE (cm) at +1h / +2h / +3h: 2.27 / 2.72 / 4.12
-- Optimizer reduction in flood cost: light / heavy / extreme:
+- ST-GNN flood F1 at +1h / +2h / +3h: 0.408 / 0.314 / 0.158
+- ST-GNN MAE (cm) at +1h / +2h / +3h: 1.98 / 2.56 / 4.07
+- Optimizer reduction in flood cost: 29.1% to 75.9% across test storms
 
 ## Blockers and waiting-on
 (none yet)
