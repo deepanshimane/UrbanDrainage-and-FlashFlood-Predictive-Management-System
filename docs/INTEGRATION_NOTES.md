@@ -127,3 +127,6 @@ simulate(
 | 6 | 1 | Merge `origin/person-b/ml-optimizer` via `git merge --no-ff` | Clean merge via ORT strategy; models/best.pt, src/ml, src/opt, tests/ml all imported intact. |
 | 7 | 1 | Smoke test B on sample dataset heavy storm | `predict()` took 270 ms cold, returned 200 nodes; `optimize()` took 3.39 s, achieved 12.9% reduction on heavy storm. |
 | 8 | 1 | Ran B's test suite with pytest | 16 passed in 14.4s (`tests/ml/test_dataset.py`, `test_metrics.py`, `test_predict.py`). |
+
+| 9 | 2 | Created `dashboard/helpers.py` | Unit-testable pure functions: `step_to_clock`, `depth_band`, `horizon_steps`, `build_recent`, `risk_table`, `nearest_node`. |
+| 10 | 2 | Created `dashboard/data_access.py` | Data Access Layer with `Dataset` dataclass, `list_areas()`, `load_area()` handling contract format and areaA format with compatibility detection. |
