@@ -2,14 +2,14 @@
 
 The AI updates this file after every step. Do not delete the table.
 
-**Overall progress: 0%**
-**Last updated:** (not started)
-**Right now working on:** B0
+**Overall progress: 13%**
+**Last updated:** 2026-10-31
+**Right now working on:** B2
 
 | Step | What it is (simple words) | Weight | Status | Result / number |
 |---|---|---|---|---|
-| B0 | Set up my laptop and check the fake data works | 5 | TODO | |
-| B1 | Teach the computer to read the data and cut it into training pieces | 8 | TODO | |
+| B0 | Set up my laptop and check the fake data works | 5 | DONE | 60 storms, 72 steps, 200 nodes, 358 edges; 1.7% flooded |
+| B1 | Teach the computer to read the data and cut it into training pieces | 8 | DONE | Input (32, 8, 200, 4), Target (32, 12, 200), split 42/9/9 |
 | B2 | Write the "score card" functions (how wrong are we?) | 7 | TODO | |
 | B3 | Build 2 simple baseline models to beat | 10 | TODO | |
 | B4 | Build and train the main graph AI model (ST-GNN) | 20 | TODO | |
