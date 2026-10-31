@@ -245,12 +245,38 @@ def load_area(name: str, base_dir: Optional[Path] = None) -> Tuple[Optional[Data
             known_spots = pd.read_csv(target_dir / "known_spots.csv") if (target_dir / "known_spots.csv").exists() else None
             pumps = pd.read_csv(target_dir / "pumps.csv") if (target_dir / "pumps.csv").exists() else None
             
-            T = 72
-            S = 1
-            rain = np.zeros((1, T, N), dtype=np.float32)
-            river = np.zeros((1, T), dtype=np.float32)
-            depth = np.zeros((1, T, N), dtype=np.float32)
-            fill = np.zeros((1, T, N), dtype=np.float32)
+            if (target_dir / "dataset" / "X.npy").exists():
+                X = np.load(target_dir / "dataset" / "X.npy") # [S, 96, N, 4]
+                S, T, _, _ = X.shape
+                rain = X[..., 0]
+                river = X[..., 1].mean(axis=-1)
+                depth = X[..., 2]
+                pump_on = X[..., 3]
+                fill = np.zeros_like(depth)
+                gate_open = np.ones((S, T, E), dtype=np.float32)
+                
+                scenarios = {"Light rain": 61, "Heavy storm": 73, "Extreme cloudburst": 90}
+                if (target_dir / "dataset" / "scenarios.json").exists():
+                    try:
+                        with open(target_dir / "dataset" / "scenarios.json") as sf:
+                            s_raw = json.load(sf)
+                            scenarios = {
+                                "Light rain": s_raw.get("light_rain", 61),
+                                "Heavy storm": s_raw.get("heavy_storm", 73),
+                                "Extreme cloudburst": s_raw.get("extreme_cloudburst", 90),
+                            }
+                    except Exception:
+                        pass
+            else:
+                T = 72
+                S = 1
+                rain = np.zeros((1, T, N), dtype=np.float32)
+                river = np.zeros((1, T), dtype=np.float32)
+                depth = np.zeros((1, T, N), dtype=np.float32)
+                fill = np.zeros((1, T, N), dtype=np.float32)
+                pump_on = np.zeros((1, T, N), dtype=np.float32)
+                gate_open = np.ones((1, T, E), dtype=np.float32)
+                scenarios = {"Light rain": 0, "Heavy storm": 0, "Extreme cloudburst": 0}
             
             ds = Dataset(
                 name="kurla",
@@ -258,6 +284,8 @@ def load_area(name: str, base_dir: Optional[Path] = None) -> Tuple[Optional[Data
                 edges=edges,
                 rain=rain,
                 river=river,
+                pump_on=pump_on,
+                gate_open=gate_open,
                 depth=depth,
                 fill=fill,
                 dt_seconds=600.0,
@@ -266,8 +294,8 @@ def load_area(name: str, base_dir: Optional[Path] = None) -> Tuple[Optional[Data
                 incompatible_reason="Scalability validation area (N=91). ST-GNN model is trained on Hindmata (N=89).",
                 known_spots=known_spots,
                 pumps=pumps,
-                scenarios={"Light rain": 0, "Heavy storm": 0, "Extreme cloudburst": 0},
-                notes=["Secondary Mumbai catchment: Kurla / Mithi River (N=91, E=105). Demonstrates cross-ward scalability."],
+                scenarios=scenarios,
+                notes=["Secondary Mumbai catchment: Kurla / Mithi River (N=91, E=126, 3 pumps). Demonstrates cross-ward scalability."],
             )
             return ds, None
         except Exception as e:

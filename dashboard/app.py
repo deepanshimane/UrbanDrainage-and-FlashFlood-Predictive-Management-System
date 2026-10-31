@@ -209,33 +209,78 @@ history_hours = round(history_steps * ds.dt_seconds / 3600.0, 1)
 
 
 # ---------------------------------------------------------------------------
-# HEADER & 3-SECOND EXECUTIVE STATUS BANNER
+# HEADER & UNIFIED TIMELINE CONTROLLER
 # ---------------------------------------------------------------------------
 st.title("🌊 FloodSense AI: Urban Drainage & Flood Management")
 st.caption("AI-Powered Real-Time Flood Depth Forecasting & Automated Sluice/Pump Dispatch | **Mumbai City Municipal Dashboard**")
 
-# Calculate overall storm severity to drive the Executive Banner
-max_overall_depth_m = float(ds.depth[storm_idx].max()) if ds.depth is not None else 0.0
-worst_overall_node = int(np.argmax(ds.depth[storm_idx].max(axis=0))) if ds.depth is not None else 0
-worst_overall_lat = float(ds.nodes.iloc[worst_overall_node]["lat"])
-worst_overall_lon = float(ds.nodes.iloc[worst_overall_node]["lon"])
-worst_landmark = get_landmark_for_node(ds.name, worst_overall_node, worst_overall_lat, worst_overall_lon)
+# Timeline Slider: Global controller positioned above the Banner and Tabs
+col_ctrl1, col_ctrl2 = st.columns([3, 1])
+with col_ctrl1:
+    current_step = st.slider(
+        "⏱️ Storm Simulation Timeline (Drag slider to inspect live flood progression across hours)",
+        min_value=0,
+        max_value=ds.T - 1,
+        value=min(24, ds.T - 1),
+        format="%d",
+        help="Step through the 16-hour storm timeline in 10-minute intervals."
+    )
+with col_ctrl2:
+    clock_str = step_to_clock(current_step, ds.dt_seconds)
+    hours_elapsed = round(current_step * ds.dt_seconds / 3600.0, 1)
+    st.markdown(f"<div style='text-align: right;'><span style='font-size: 1.85rem; font-weight: 700; color: #38bdf8;'>🕒 {clock_str}</span><br/><span style='color: #94a3b8; font-size: 0.85rem;'>Step {current_step}/{ds.T} ({hours_elapsed}h elapsed)</span></div>", unsafe_allow_html=True)
 
-if max_overall_depth_m >= 0.50:
+
+# ---------------------------------------------------------------------------
+# FULLY DYNAMIC 3-SECOND EXECUTIVE STATUS BANNER
+# ---------------------------------------------------------------------------
+# Current step inundation values
+d_step_m = ds.depth[storm_idx, current_step] if ds.depth is not None else np.zeros(ds.N)
+d_step_cm = d_step_m * 100.0
+current_max_depth_m = float(d_step_m.max()) if len(d_step_m) > 0 else 0.0
+current_max_d_cm = round(current_max_depth_m * 100.0, 1)
+flooded_count = int((d_step_m > 0.10).sum())
+worst_node_id = int(np.argmax(d_step_m)) if len(d_step_m) > 0 else 0
+worst_node_lat = float(ds.nodes.iloc[worst_node_id]["lat"])
+worst_node_lon = float(ds.nodes.iloc[worst_node_id]["lon"])
+worst_node_landmark = get_landmark_for_node(ds.name, worst_node_id, worst_node_lat, worst_node_lon)
+
+# Overall storm peak for early warnings
+peak_depth_m = float(ds.depth[storm_idx].max()) if ds.depth is not None else 0.0
+peak_step = int(np.argmax(ds.depth[storm_idx].max(axis=1))) if ds.depth is not None else 0
+peak_clock = step_to_clock(peak_step, ds.dt_seconds)
+overall_worst_node = int(np.argmax(ds.depth[storm_idx].max(axis=0))) if ds.depth is not None else 0
+overall_worst_landmark = get_landmark_for_node(ds.name, overall_worst_node, float(ds.nodes.iloc[overall_worst_node]["lat"]), float(ds.nodes.iloc[overall_worst_node]["lon"]))
+
+# Status Banner State Logic
+if current_max_depth_m >= 0.50:
     banner_cls = "executive-banner-danger"
     status_icon = "🚨"
-    headline = f"CRITICAL FLOOD ALERT — Peak Inundation: {int(max_overall_depth_m*100)} cm (Waist-Deep) at {worst_landmark}"
-    action_text = "⚠️ Automated System Action: High-capacity pumps scheduled pre-emptively. Tidal gates throttled to halt seawater surge. Inundation volume reduced by up to 32.8%."
-elif max_overall_depth_m >= 0.25:
+    headline = f"CRITICAL FLOOD ALERT ({clock_str}) — Inundation: {int(current_max_d_cm)} cm (Waist-Deep) at {worst_node_landmark}"
+    action_text = f"⚠️ Emergency Action: {flooded_count} of {ds.N} junctions submerged. Automated high-capacity pumps active at 100%. Tidal outfall gates throttled against Arabian Sea surge."
+elif current_max_depth_m >= 0.25:
     banner_cls = "executive-banner-warning"
     status_icon = "⚠️"
-    headline = f"MODERATE FLOOD WARNING — Inundation up to {int(max_overall_depth_m*100)} cm (Knee-Deep) Expected at {worst_landmark}"
-    action_text = "⚡ System Action: Ward pumping stations active. Low-lying traffic diversions recommended on Dr. Ambedkar Road."
+    headline = f"MODERATE FLOOD WARNING ({clock_str}) — Inundation: {int(current_max_d_cm)} cm (Knee-Deep) at {worst_node_landmark}"
+    action_text = f"⚡ System Action: {flooded_count} junctions waterlogged. Ward pumping stations running. Traffic diversion advised on Dr. Ambedkar Road."
+elif current_max_depth_m >= 0.10:
+    banner_cls = "executive-banner-warning"
+    status_icon = "🟡"
+    headline = f"MINOR WATERLOGGING ({clock_str}) — Surface Water: {int(current_max_d_cm)} cm (Ankle-Deep) at {worst_node_landmark}"
+    if peak_step > current_step and peak_depth_m >= 0.25:
+        action_text = f"🔮 AI Early Warning: Monsoon deluge intensifying. Inundation predicted to peak at {peak_clock} ({int(peak_depth_m*100)} cm at {overall_worst_landmark}). Pumping stations in pre-emptive drawdown."
+    else:
+        action_text = "💧 System Action: Slow street drainage. Mini-pumps operating on automatic float switch."
 else:
     banner_cls = "executive-banner-safe"
-    status_icon = "✅"
-    headline = "ALL CLEAR — Normal Runoff Levels Across Network"
-    action_text = "💧 System Action: Gravity outfalls discharging freely. Pumps in ready standby mode."
+    status_icon = "🟢"
+    if peak_step > current_step and peak_depth_m >= 0.25:
+        headline = f"ALL CLEAR NOW ({clock_str}) — Pavements Dry ({int(current_max_d_cm)} cm) • AI Early Warning Active"
+        lead_hours = round((peak_step - current_step) * ds.dt_seconds / 3600.0, 1)
+        action_text = f"🔮 AI Early Warning: Cloudburst peak predicted in {lead_hours}h (at {peak_clock}, reaching {int(peak_depth_m*100)} cm at {overall_worst_landmark}). Sluice gates & holding tanks pre-activating."
+    else:
+        headline = f"ALL CLEAR ({clock_str}) — Normal Runoff Across Network (Depth: {int(current_max_d_cm)} cm)"
+        action_text = "💧 System Action: Normal gravity drainage to Arabian Sea outfalls. Pumps on ready standby."
 
 st.markdown(f"""
 <div class="{banner_cls}">
@@ -261,32 +306,11 @@ tab_live, tab_optimizer, tab_alerts, tab_metrics, tab_about = st.tabs([
 # TAB 1: LIVE SITUATION & AI PREDICTION
 # ===========================================================================
 with tab_live:
-    col_ctrl1, col_ctrl2 = st.columns([3, 1])
-    with col_ctrl1:
-        current_step = st.slider(
-            "⏱️ Storm Simulation Timeline (Drag slider to inspect flood propagation)",
-            min_value=0,
-            max_value=ds.T - 1,
-            value=min(24, ds.T - 1),
-            format="%d",
-            help="Step through the 16-hour storm timeline in 10-minute intervals."
-        )
-    with col_ctrl2:
-        clock_str = step_to_clock(current_step, ds.dt_seconds)
-        st.markdown(f"<h2 style='margin: 0; color: #38bdf8;'>🕒 {clock_str}</h2>", unsafe_allow_html=True)
-        st.caption(f"Time Step {current_step} / {ds.T} ({round(current_step * ds.dt_seconds / 3600.0, 1)} hours elapsed)")
-
-    # Current step metrics
-    d_step_m = ds.depth[storm_idx, current_step] if ds.depth is not None else np.zeros(ds.N)
-    d_step_cm = d_step_m * 100.0
     rain_step = float(ds.rain[storm_idx, current_step].mean())
     river_step = float(ds.river[storm_idx, current_step])
-    flooded_count = int((d_step_m > 0.10).sum())
-    max_d_cm = round(float(d_step_cm.max()), 1)
-    worst_node_id = int(np.argmax(d_step_m))
-    worst_node_landmark = get_landmark_for_node(ds.name, worst_node_id, float(ds.nodes.iloc[worst_node_id]["lat"]), float(ds.nodes.iloc[worst_node_id]["lon"]))
+    max_d_cm = current_max_d_cm
 
-    # Key Human-Friendly Metrics
+    # Key Human-Friendly Metrics (Responsive to current_step)
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Submerged Street Junctions", f"{flooded_count} of {ds.N}", delta=f"{round(flooded_count/ds.N*100, 1)}% of area", delta_color="inverse")
     m2.metric("Worst Inundation Depth", f"{max_d_cm} cm", delta=worst_node_landmark, delta_color="off")
@@ -388,7 +412,6 @@ with tab_live:
     
     fc1, fc2, fc3 = st.columns(3)
     
-    # Pre-calculated horizon metrics from verified evaluation
     with fc1:
         st.markdown("""
         <div style='background-color: #1e293b; border-radius: 8px; padding: 14px; border: 1px solid #3b82f6;'>
@@ -467,7 +490,7 @@ with tab_alerts:
     st.markdown("### 📢 **Civic Warnings & Citizen Emergency Broadcast**")
     st.caption("Automated bilingual early-warning notifications generated from real-time model predictions.")
 
-    # Bilingual Citizen Broadcast Card
+    # Bilingual Citizen Broadcast Card (Dynamically reflecting current time and water depth)
     st.markdown("#### 📱 Automated Emergency Broadcast Notification")
     c_bc1, c_bc2 = st.columns(2)
     with c_bc1:
@@ -475,7 +498,7 @@ with tab_alerts:
         <div class="citizen-card">
             <h5 style='color: #60a5fa; margin: 0;'>🇬🇧 English Emergency Broadcast</h5>
             <p style='font-size: 0.95rem; margin-top: 8px;'>
-                ⚠️ <strong>BMC Flash Flood Alert:</strong> Severe waterlogging ({max_d_cm} cm) predicted at <strong>{worst_node_landmark}</strong> by <strong>{clock_str}</strong>. 
+                ⚠️ <strong>BMC Flash Flood Alert:</strong> Waterlogging ({int(current_max_d_cm)} cm) recorded at <strong>{worst_node_landmark}</strong> at <strong>{clock_str}</strong>. 
                 Underground mini-pumps are active. Commuters are advised to avoid Dr. Ambedkar Road and take flyover routes.
             </p>
             <span style='font-size: 0.75rem; color: #94a3b8;'>Source: BMC Disaster Management AI • Target Ward: F/South</span>
@@ -487,7 +510,7 @@ with tab_alerts:
         <div class="citizen-card">
             <h5 style='color: #60a5fa; margin: 0;'>🇮🇳 हिंदी आपातकालीन चेतावनी</h5>
             <p style='font-size: 0.95rem; margin-top: 8px;'>
-                ⚠️ <strong>बीएमसी बाढ़ चेतावनी:</strong> <strong>{clock_str}</strong> तक <strong>{worst_node_landmark}</strong> पर भारी जलभराव ({max_d_cm} सेमी) का अनुमान है। 
+                ⚠️ <strong>बीएमसी बाढ़ चेतावनी:</strong> <strong>{clock_str}</strong> पर <strong>{worst_node_landmark}</strong> में जलभराव ({int(current_max_d_cm)} सेमी) दर्ज किया गया है। 
                 पंपिंग स्टेशन चालू कर दिए गए हैं। नागरिकों से अनुरोध है कि डॉ. आंबेडकर रोड से बचें और सुरक्षित मार्गों का प्रयोग करें।
             </p>
             <span style='font-size: 0.75rem; color: #94a3b8;'>स्रोत: बृहन्मुंबई महानगरपालिका (BMC) आपदा प्रबंधन • प्रभाग: F/South</span>
