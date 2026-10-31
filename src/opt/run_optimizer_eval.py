@@ -21,7 +21,9 @@ from src.common.io import load_graph, load_dataset
 from src.opt.optimize import optimize
 
 
-def run_optimizer_suite(data_dir: str = "data/sample"):
+def run_optimizer_suite(data_dir: str = None):
+    if data_dir is None:
+        data_dir = "data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample"
     nodes, edges = load_graph(data_dir)
     ds = load_dataset(data_dir)
 
@@ -100,4 +102,6 @@ def run_optimizer_suite(data_dir: str = "data/sample"):
 
 
 if __name__ == "__main__":
-    run_optimizer_suite()
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else None
+    run_optimizer_suite(data_dir=target)

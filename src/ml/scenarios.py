@@ -30,8 +30,8 @@ def make_controlled_storm(nodes: pd.DataFrame, peak_mmh: float, seed: int = 42, 
     """Generate a reproducible storm with a specified peak rainfall intensity."""
     rng = np.random.default_rng(seed)
     N = len(nodes)
-    x = (nodes.lon - nodes.lon.min()) / (nodes.lon.max() - nodes.lon.min())
-    y = (nodes.lat - nodes.lat.min()) / (nodes.lat.max() - nodes.lat.min())
+    x = (nodes.lon - nodes.lon.min()) / max(float(nodes.lon.max() - nodes.lon.min()), 1e-6)
+    y = (nodes.lat - nodes.lat.min()) / max(float(nodes.lat.max() - nodes.lat.min()), 1e-6)
 
     sigma = 0.4
     start, dur = 10, 16
@@ -51,7 +51,9 @@ def make_controlled_storm(nodes: pd.DataFrame, peak_mmh: float, seed: int = 42, 
     return rain, np.clip(river, 0, 6)
 
 
-def run_scenarios(data_dir: str = "data/sample"):
+def run_scenarios(data_dir: str = None):
+    if data_dir is None:
+        data_dir = "data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample"
     nodes, edges = load_graph(data_dir)
     N = len(nodes)
     T = 72
@@ -149,4 +151,6 @@ def run_scenarios(data_dir: str = "data/sample"):
 
 
 if __name__ == "__main__":
-    run_scenarios()
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else None
+    run_scenarios(data_dir=target)

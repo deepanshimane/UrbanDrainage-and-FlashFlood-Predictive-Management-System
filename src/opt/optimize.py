@@ -37,8 +37,8 @@ def optimize_rules(nodes: pd.DataFrame, edges: pd.DataFrame, rain: np.ndarray, r
     """
     T, N = rain.shape
     E = len(edges)
-    pump_nodes = nodes.index[nodes["has_pump"] == 1].to_numpy()
-    gate_edges = edges.index[edges["is_gate"] == 1].to_numpy()
+    pump_nodes = nodes.index[nodes["has_pump"] == 1].to_numpy() if "has_pump" in nodes.columns else np.array([], dtype=int)
+    gate_edges = edges.index[edges["is_gate"] == 1].to_numpy() if "is_gate" in edges.columns else np.array([], dtype=int)
     src = edges.source.to_numpy(int)
     dst = edges.target.to_numpy(int)
 
@@ -46,14 +46,14 @@ def optimize_rules(nodes: pd.DataFrame, edges: pd.DataFrame, rain: np.ndarray, r
     gate_open = np.ones((T, E), dtype=np.float32)
 
     # We do a sequential simulation pass to apply rules reactively
-    cap = nodes.capacity_m3.to_numpy(float)
-    area = nodes.catchment_m2.to_numpy(float)
+    area = nodes["area_m2"].to_numpy(float) if "area_m2" in nodes.columns else nodes["catchment_m2"].to_numpy(float)
+    cap = nodes["capacity_m3"].to_numpy(float) if "capacity_m3" in nodes.columns else np.maximum(area * 0.05, 100.0)
     runoff = nodes.runoff_coeff.to_numpy(float)
-    elev = nodes.elevation_m.to_numpy(float)
-    prate = (nodes.pump_rate_m3s * nodes.has_pump).to_numpy(float)
-    outlet = nodes.is_outlet.to_numpy(float)
+    elev = nodes["elevation"].to_numpy(float) if "elevation" in nodes.columns else nodes["elevation_m"].to_numpy(float)
+    prate = (nodes.pump_rate_m3s * nodes.has_pump).to_numpy(float) if "pump_rate_m3s" in nodes.columns else np.full(N, 4.0) * (nodes["has_pump"].to_numpy(float) if "has_pump" in nodes.columns else 0.0)
+    outlet = nodes.is_outlet.to_numpy(float) if "is_outlet" in nodes.columns else np.zeros(N, dtype=float)
     ecap = edges.capacity_m3s.to_numpy(float)
-    is_gate_mask = edges.is_gate.to_numpy(int) == 1
+    is_gate_mask = (edges.is_gate.to_numpy(int) == 1) if "is_gate" in edges.columns else np.zeros(E, dtype=bool)
     pond = 0.02 * area
     storage = np.zeros(N)
 
@@ -114,8 +114,8 @@ def optimize_search(
     rng = np.random.default_rng(seed)
     T, N = rain.shape
     E = len(edges)
-    pump_nodes = nodes.index[nodes["has_pump"] == 1].to_numpy()
-    gate_edges = edges.index[edges["is_gate"] == 1].to_numpy()
+    pump_nodes = nodes.index[nodes["has_pump"] == 1].to_numpy() if "has_pump" in nodes.columns else np.array([], dtype=int)
+    gate_edges = edges.index[edges["is_gate"] == 1].to_numpy() if "is_gate" in edges.columns else np.array([], dtype=int)
 
     # Champion initialized with rules
     best_pumps, best_gates = optimize_rules(nodes, edges, rain, river)
@@ -174,8 +174,8 @@ def _extract_schedules(pump_on: np.ndarray, gate_open: np.ndarray, nodes: pd.Dat
     """Convert boolean arrays to human-readable change-event lists."""
     T, N = pump_on.shape
     E = gate_open.shape[1]
-    pump_nodes = nodes.index[nodes["has_pump"] == 1].to_numpy()
-    gate_edges = edges.index[edges["is_gate"] == 1].to_numpy()
+    pump_nodes = nodes.index[nodes["has_pump"] == 1].to_numpy() if "has_pump" in nodes.columns else np.array([], dtype=int)
+    gate_edges = edges.index[edges["is_gate"] == 1].to_numpy() if "is_gate" in edges.columns else np.array([], dtype=int)
 
     pump_sched = []
     for p in pump_nodes:

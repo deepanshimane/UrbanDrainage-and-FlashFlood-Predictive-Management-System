@@ -10,7 +10,7 @@ from pathlib import Path
 
 from src.ml.dataset import split_storms, build_loaders, SEED
 
-DATA_DIR = "data/sample"
+DATA_DIR = "data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample"
 
 
 def test_split_no_overlap():

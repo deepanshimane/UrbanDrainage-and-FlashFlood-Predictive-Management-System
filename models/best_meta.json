@@ -1,66 +1,66 @@
 {
   "model_type": "ST-GNN",
-  "num_nodes": 200,
+  "num_nodes": 89,
   "hidden_dim": 48,
   "history_steps": 8,
   "horizon_steps": 12,
   "norm_mean": [
-    5.843597412109375,
-    0.09546048194169998,
-    1.0735747814178467,
-    0.019212963059544563
+    1.4774326086044312,
+    0.13903875648975372,
+    -0.023355044424533844,
+    0.9039496779441833
   ],
   "norm_std": [
-    13.295668601989746,
-    0.6145708560943604,
-    1.1560167074203491,
-    0.1371573507785797
+    2.8762826919555664,
+    0.7853212356567383,
+    1.3195146322250366,
+    0.29509174823760986
   ],
-  "best_val_loss": 0.09441,
+  "best_val_loss": 0.00865,
   "validation_metrics": {
     "1h": {
-      "mae_cm": 2.27,
-      "rmse_cm": 14.51,
-      "precision": 0.2854,
-      "recall": 0.9346,
-      "f1": 0.4373,
-      "iou": 0.2798
+      "mae_cm": 1.08,
+      "rmse_cm": 4.06,
+      "precision": 0.5513,
+      "recall": 0.9191,
+      "f1": 0.6892,
+      "iou": 0.5258
     },
     "2h": {
-      "mae_cm": 2.72,
-      "rmse_cm": 15.83,
-      "precision": 0.1954,
-      "recall": 0.9303,
-      "f1": 0.323,
-      "iou": 0.1926
+      "mae_cm": 1.58,
+      "rmse_cm": 4.82,
+      "precision": 0.4687,
+      "recall": 0.907,
+      "f1": 0.618,
+      "iou": 0.4472
     },
     "3h": {
-      "mae_cm": 4.12,
-      "rmse_cm": 18.66,
-      "precision": 0.0801,
-      "recall": 0.9049,
-      "f1": 0.1472,
-      "iou": 0.0794
+      "mae_cm": 2.39,
+      "rmse_cm": 5.87,
+      "precision": 0.3927,
+      "recall": 0.8604,
+      "f1": 0.5392,
+      "iou": 0.3692
     }
   },
   "validation_flooded_metrics": {
     "1h": {
-      "f1": 0.4482,
-      "precision": 0.2948,
-      "recall": 0.9346,
-      "samples_with_flood": 231
+      "f1": 0.6901,
+      "precision": 0.5524,
+      "recall": 0.9191,
+      "samples_with_flood": 1598
     },
     "2h": {
-      "f1": 0.3341,
-      "precision": 0.2036,
-      "recall": 0.9303,
-      "samples_with_flood": 222
+      "f1": 0.6206,
+      "precision": 0.4717,
+      "recall": 0.907,
+      "samples_with_flood": 1636
     },
     "3h": {
-      "f1": 0.1627,
-      "precision": 0.0894,
-      "recall": 0.9049,
-      "samples_with_flood": 200
+      "f1": 0.5458,
+      "precision": 0.3996,
+      "recall": 0.8604,
+      "samples_with_flood": 1657
     }
   }
 }

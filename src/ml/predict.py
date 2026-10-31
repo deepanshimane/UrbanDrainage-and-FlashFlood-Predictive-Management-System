@@ -180,8 +180,10 @@ def predict(nodes: pd.DataFrame, edges: pd.DataFrame, recent: dict, model_path: 
     }
 
 
-def demo(data_dir: str = "data/sample", model_path: str = "models/best.pt"):
+def demo(data_dir: str = None, model_path: str = "models/best.pt"):
     """Command-line demo: picks test storm, runs predict, prints valid JSON."""
+    if data_dir is None:
+        data_dir = "data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample"
     nodes, edges = load_graph(data_dir)
     ds = load_dataset(data_dir)
 
@@ -208,7 +210,8 @@ def demo(data_dir: str = "data/sample", model_path: str = "models/best.pt"):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--demo":
-        demo()
-    else:
-        demo()
+    target = None
+    for arg in sys.argv[1:]:
+        if arg != "--demo" and not arg.startswith("-"):
+            target = arg
+    demo(data_dir=target)

@@ -39,11 +39,11 @@ def weighted_mse_loss(pred: torch.Tensor, target: torch.Tensor, flood_weight: fl
 def train_stgnn(
     data_dir: str = "data/sample",
     hidden_dim: int = 48,
-    epochs: int = 25,
+    epochs: int = 15,
     lr: float = 1.5e-3,
     flood_weight: float = 12.0,
-    patience: int = 7,
-    batch_size: int = 32,
+    patience: int = 4,
+    batch_size: int = 64,
     device: str = "cpu",
 ):
     # Fix seed
@@ -200,5 +200,5 @@ def train_stgnn(
 
 if __name__ == "__main__":
     import sys
-    target_dir = sys.argv[1] if len(sys.argv) > 1 else "data/sample"
+    target_dir = sys.argv[1] if len(sys.argv) > 1 else ("data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample")
     train_stgnn(data_dir=target_dir)

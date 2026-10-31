@@ -30,27 +30,18 @@ def run_persistence_baseline(ds, val_idx, nodes):
     if fill > 1.0: excess = (fill - 1.0) * capacity
     depth = min(3.0, excess / (0.02 * catchment_m2))
     """
-    cap = nodes.capacity_m3.to_numpy(float)
-    area = nodes.catchment_m2.to_numpy(float)
-    pond = 0.02 * area
-    N = len(nodes)
-
     all_preds = []
     all_targets = []
-
     for s in val_idx:
-        fill = ds["fill"][s]    # [T, N]
         depth = ds["depth"][s]  # [T, N]
-        T = fill.shape[0]
+        T = depth.shape[0]
 
         for t in range(T - HISTORY_STEPS - HORIZON_STEPS + 1):
             hi = t + HISTORY_STEPS
-            # last observed fill at step hi - 1
-            curr_fill = fill[hi - 1]
-            excess = np.maximum(0.0, (curr_fill - 1.0) * cap)
-            curr_depth = np.minimum(3.0, excess / pond).astype(np.float32)  # [N]
+            # persistence: assume depth stays what it is at the last observed step (hi - 1)
+            curr_depth = depth[hi - 1].astype(np.float32)  # [N]
 
-            # persistence: repeat for all 12 horizon steps
+            # repeat for all 12 horizon steps
             pred_12 = np.repeat(curr_depth[None, :], HORIZON_STEPS, axis=0)  # [12, N]
             target_12 = depth[hi: hi + HORIZON_STEPS]                         # [12, N]
 
@@ -189,5 +180,5 @@ def run_baselines(data_dir: str = "data/sample", out_csv: str = "results/baselin
 
 if __name__ == "__main__":
     import sys
-    target_dir = sys.argv[1] if len(sys.argv) > 1 else "data/sample"
+    target_dir = sys.argv[1] if len(sys.argv) > 1 else ("data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample")
     run_baselines(data_dir=target_dir)

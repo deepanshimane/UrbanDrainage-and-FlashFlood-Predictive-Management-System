@@ -284,5 +284,5 @@ Tested on **9 unseen test storms** (never seen during model training or hyperpar
 
 if __name__ == "__main__":
     import sys
-    target_dir = sys.argv[1] if len(sys.argv) > 1 else "data/sample"
+    target_dir = sys.argv[1] if len(sys.argv) > 1 else ("data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample")
     evaluate_test_set(data_dir=target_dir)

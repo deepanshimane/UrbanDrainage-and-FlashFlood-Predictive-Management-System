@@ -14,7 +14,9 @@ import pytest
 from src.common.io import load_graph, load_dataset
 from src.ml.predict import predict
 
-DATA_DIR = "data/sample"
+from pathlib import Path
+
+DATA_DIR = "data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample"
 MODEL_PATH = "models/best.pt"
 
 

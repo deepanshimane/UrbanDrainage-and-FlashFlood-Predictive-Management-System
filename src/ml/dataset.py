@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 
@@ -128,7 +129,14 @@ def build_loaders(data_dir: str, batch_size: int = 32, save_split: bool = True):
     ds = load_dataset(data_dir)
 
     S = ds["rain"].shape[0]
-    train_idx, val_idx, test_idx = split_storms(S)
+    meta_csv_path = data_dir / "dataset" / "meta.csv" if (data_dir / "dataset" / "meta.csv").exists() else data_dir / "meta.csv"
+    if meta_csv_path.exists():
+        meta_df = pd.read_csv(meta_csv_path)
+        train_idx = meta_df.index[meta_df["split"] == "train"].tolist()
+        val_idx = meta_df.index[meta_df["split"] == "val"].tolist()
+        test_idx = meta_df.index[meta_df["split"] == "test"].tolist()
+    else:
+        train_idx, val_idx, test_idx = split_storms(S)
 
     # save split so we never accidentally leak test storms
     if save_split:
@@ -168,8 +176,11 @@ def build_loaders(data_dir: str, batch_size: int = 32, save_split: bool = True):
 # ── quick smoke-test when run directly ───────────────────────────────────────
 
 if __name__ == "__main__":
-    loaders, meta = build_loaders("data/sample")
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else ("data/hindmata" if Path("data/hindmata/nodes.csv").exists() else "data/sample")
+    loaders, meta = build_loaders(target)
     x, y = next(iter(loaders["train"]))
+    print(f"Dataset target: {target}")
     print(f"Input batch shape  : {tuple(x.shape)}  (batch, history, nodes, channels)")
     print(f"Target batch shape : {tuple(y.shape)}  (batch, horizon, nodes)")
     print(f"Norm mean (4 channels): {meta['norm_mean']}")
