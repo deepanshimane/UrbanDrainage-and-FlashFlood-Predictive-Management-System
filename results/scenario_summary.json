@@ -1,0 +1,44 @@
+{
+  "light": {
+    "peak_rainfall_mmh": 25.0,
+    "rain_file": "results\\scenarios\\light_rain.npy",
+    "river_file": "results\\scenarios\\light_river.npy",
+    "flood_cost_before_mh": 168.9789975416787,
+    "flood_cost_after_mh": 163.66,
+    "reduction_pct": 3.1,
+    "flooded_nodes_before": 42,
+    "flooded_nodes_after": 42,
+    "prevented_flooded_junctions": 0,
+    "max_water_depth_before_m": 1.87,
+    "max_water_depth_after_m": 1.85,
+    "early_warning_3h_detected_nodes": 76
+  },
+  "heavy": {
+    "peak_rainfall_mmh": 60.0,
+    "rain_file": "results\\scenarios\\heavy_rain.npy",
+    "river_file": "results\\scenarios\\heavy_river.npy",
+    "flood_cost_before_mh": 471.2909092292148,
+    "flood_cost_after_mh": 463.08,
+    "reduction_pct": 1.7,
+    "flooded_nodes_before": 67,
+    "flooded_nodes_after": 67,
+    "prevented_flooded_junctions": 0,
+    "max_water_depth_before_m": 3.39,
+    "max_water_depth_after_m": 3.29,
+    "early_warning_3h_detected_nodes": 84
+  },
+  "extreme": {
+    "peak_rainfall_mmh": 110.0,
+    "rain_file": "results\\scenarios\\extreme_rain.npy",
+    "river_file": "results\\scenarios\\extreme_river.npy",
+    "flood_cost_before_mh": 829.2680831560299,
+    "flood_cost_after_mh": 824.26,
+    "reduction_pct": 0.6,
+    "flooded_nodes_before": 80,
+    "flooded_nodes_after": 80,
+    "prevented_flooded_junctions": 0,
+    "max_water_depth_before_m": 3.85,
+    "max_water_depth_after_m": 3.79,
+    "early_warning_3h_detected_nodes": 87
+  }
+}

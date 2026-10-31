@@ -1,0 +1,4 @@
+storm_id,cost_before,cost_rules,reduction_rules_pct,cost_search,reduction_search_pct
+3,117.53,115.86,1.4,105.38,10.3
+5,79.33,78.35,1.2,75.05,5.4
+11,182.03,179.53,1.4,175.18,3.8
