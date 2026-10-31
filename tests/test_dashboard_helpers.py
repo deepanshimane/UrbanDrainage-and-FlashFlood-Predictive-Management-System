@@ -12,6 +12,8 @@ from dashboard.helpers import (
     haversine_distance_m,
     nearest_node,
     risk_table,
+    get_landmark_for_node,
+    human_severity_desc,
 )
 from dashboard.data_access import load_area, list_areas, Dataset
 
@@ -145,3 +147,27 @@ def test_load_hindmata_area():
     assert ds.N == 89
     assert ds.E == 140
     assert ds.is_model_compatible is True
+
+
+def test_load_kurla_area():
+    ds, err = load_area("kurla")
+    assert err is None
+    assert ds is not None
+    assert ds.N == 91
+    assert ds.E == 126
+    assert ds.S == 106
+    assert ds.is_model_compatible is False
+
+
+def test_get_landmark_for_node():
+    assert "Hindmata" in get_landmark_for_node("hindmata", 50, 19.009, 72.841)
+    assert "Dadar TT" in get_landmark_for_node("hindmata", 70, 19.017, 72.843)
+    assert "Bail Bazar" in get_landmark_for_node("kurla", 80, 19.075, 72.883)
+    assert "Kranti Nagar" in get_landmark_for_node("kurla", 75, 19.072, 72.875)
+
+
+def test_human_severity_desc():
+    assert "Safe" in human_severity_desc(5.0)
+    assert "Ankle-Deep" in human_severity_desc(15.0)
+    assert "Knee-Deep" in human_severity_desc(35.0)
+    assert "Waist-Deep" in human_severity_desc(75.0)

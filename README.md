@@ -30,9 +30,9 @@
                                     │
                                     ▼
                    Interactive Streamlit Dashboard
-                   - Pydeck 3D/2D Topographic Flood Map
-                   - +1h, +2h, +3h Lead Time Comparison
-                   - Automated Sluice Gate & Pump Dispatch
+                   - Top Executive Alert Banner & Master Slider
+                   - 5 Human-Centric Operational Tabs
+                   - Bilingual Emergency Broadcasts (EN & HI)
 ```
 
 ---
@@ -72,7 +72,7 @@ python -m streamlit run dashboard/app.py --server.port 8501
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Service health, node count, and model readiness status |
-| `GET` | `/areas` | Discovers available urban catchments and compatibility |
+| `GET` | `/areas` | Discovers available urban catchments (`hindmata`, `kurla`, `sample`) |
 | `GET` | `/scenarios` | Returns Light, Heavy, and Extreme storm hydrographs |
 | `POST` | `/predict` | Ingests 2h sensor history; outputs multi-horizon flood depths |
 | `POST` | `/optimize` | Computes optimal pump schedule & gate throttling |
@@ -84,10 +84,10 @@ python -m streamlit run dashboard/app.py --server.port 8501
 
 ## 🎛️ Dashboard Guide (dashboard/app.py)
 
-1. **Interactive Flood Map:** Visualizes street junction nodes color-coded by fixed severity bands (<10cm Safe, 10-30cm Minor, 30-60cm Moderate, 60-100cm Severe, >100cm Extreme). Displays pump station rings and river outfalls.
-2. **Multi-Horizon AI Forecast:** Step-by-step forecast for +1h, +2h, and +3h lead times compared against simulator ground truth with real MAE (cm) tracking.
-3. **Risk & Alerts:** Automated prioritized table of most inundated junctions with CSV export.
-4. **Pump & Gate Optimizer:** One-click dispatch optimization displaying flood cost reduction before/after and an actuation timeline.
-5. **IoT Sensor Gauge:** River water level telemetry chart with critical backwater thresholds.
-6. **Model Performance:** Real empirical evaluation scores (F1, MAE, RMSE) comparing ST-GNN against Persistence and No-Graph baselines.
-7. **About & Honesty:** Complete transparency on simulated components.
+- **3-Second Executive Status Banner:** Prominent top-of-screen status bar providing instant situation awareness (🚨 Critical Alert, ⚠️ Moderate Warning, 🟢 All Clear) with automated mitigation actions and real street landmark names.
+- **Global Timeline Controller:** Master slider and live clock (`00:00` to `16:00`) that synchronously controls all map layers, risk rankings, and alerts.
+- **Tab 1: 🗺️ Live Situation & AI Prediction:** Pydeck dark-matter flood map with physical depth bands (Ankle-Deep, Knee-Deep, Waist-Deep), pump halo rings, and $+1\text{h}$, $+2\text{h}$, $+3\text{h}$ ST-GNN forecast cards (91.9% recall).
+- **Tab 2: ⚡ Automated Pump & Gate Action:** Before vs. After optimization comparison showing up to 32.8% flood volume reduction, the Mumbai "Tide Story" explainer, and the automated pump dispatch timetable.
+- **Tab 3: 📢 Civic Alerts & Citizen Broadcast:** Bilingual emergency broadcast cards in English and Hindi (हिंदी) ready for public ward transmission, and prioritized flood hotspot table with 1-click CSV download.
+- **Tab 4: 📊 AI Accuracy & IoT Telemetry:** Benchmark comparison against Persistence and No-Graph baselines ($1.08\text{ cm}$ MAE), plus real-time simulated ultrasonic outfall gauge chart.
+- **Tab 5: ℹ️ Engineering Assumptions & Honesty:** Complete transparency on real OSM/DEM/reanalysis data vs. simulated internal pipe hydraulics.
