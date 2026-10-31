@@ -1,19 +1,29 @@
 """FastAPI backend for Urban Drainage and Flash Flood Predictive Management System.
-Implements the contract specified in CONTRACT.md:
+Person C Implementation.
+
+Endpoints:
+  GET  /
+  GET  /health
+  GET  /areas
+  GET  /scenarios
   GET  /scenario/{name}
   POST /predict
   POST /optimize
+  GET  /cache/status
   GET  /sensor-stream
   GET  /graph
-  GET  /health
+  GET  /known-spots
+  GET  /metrics
 """
-
 import sys
+import time
+import json
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -23,14 +33,16 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.common.io import DT_SECONDS, HISTORY_STEPS, HORIZON_STEPS
+from dashboard.data_access import list_areas, load_area, get_model_constraints
+from dashboard.helpers import step_to_clock
 
 app = FastAPI(
     title="FloodSense AI - Urban Drainage & Flash Flood Management API",
-    description="Person C backend providing flood prediction, pump/gate dispatch optimization, and IoT sensor streams.",
-    version="1.0.0",
+    description="Person C backend providing flood prediction, pump/gate dispatch optimization, and IoT sensor streams. All data simulated.",
+    version="2.0.0",
 )
 
-# Enable CORS for local dashboards and external clients
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,52 +52,16 @@ app.add_middleware(
 )
 
 DATA_SAMPLE_DIR = REPO_ROOT / "data" / "sample"
+RESULTS_DIR = REPO_ROOT / "results"
 
-
-def get_graph_data():
-    """Load nodes and edges from data/sample if available, or generate a fallback stub."""
-    nodes_csv = DATA_SAMPLE_DIR / "nodes.csv"
-    edges_csv = DATA_SAMPLE_DIR / "edges.csv"
-    if nodes_csv.exists() and edges_csv.exists():
-        try:
-            nodes_df = pd.read_csv(nodes_csv)
-            edges_df = pd.read_csv(edges_csv)
-            return nodes_df, edges_df
-        except Exception:
-            pass
-    # Fallback synthetic graph
-    n = 200
-    rng = np.random.default_rng(0)
-    x = rng.random(n)
-    y = rng.random(n)
-    elev = 12 * (1 - y) + rng.normal(0, 1.2, n)
-    nodes_df = pd.DataFrame({
-        "node_id": np.arange(n),
-        "lat": 19.00 + y * 0.018,
-        "lon": 72.83 + x * 0.018,
-        "elevation_m": elev.round(2),
-        "capacity_m3": rng.uniform(200, 600, n).round(1),
-        "catchment_m2": rng.uniform(8000, 30000, n).round(0),
-        "runoff_coeff": rng.uniform(0.3, 0.9, n).round(2),
-        "has_pump": (rng.random(n) < 0.06).astype(int),
-        "pump_rate_m3s": 0.3,
-        "is_outlet": (elev < 2.0).astype(int),
-    })
-    edges_df = pd.DataFrame({
-        "edge_id": np.arange(100),
-        "source": rng.integers(0, n - 1, 100),
-        "target": rng.integers(0, n - 1, 100),
-        "capacity_m3s": 0.6,
-        "length_m": 120.0,
-        "is_gate": (rng.random(100) < 0.1).astype(int),
-    })
-    return nodes_df, edges_df
+# In-memory optimizer cache: key -> dict
+OPTIMIZER_CACHE: Dict[str, Any] = {}
+CACHE_STATS = {"hits": 0, "misses": 0, "warmed": False, "warmup_duration_s": 0.0}
 
 
 # ---------------------------------------------------------------------------
 # Pydantic Schemas
 # ---------------------------------------------------------------------------
-
 class WorstNodeInfo(BaseModel):
     node_id: int
     depth_m: float
@@ -97,12 +73,15 @@ class PredictionResponse(BaseModel):
     nodes: Dict[str, Dict[str, float]]
     flooded_nodes_3h: int
     worst_node: WorstNodeInfo
+    source: str = "model"               # "model" or "fallback"
+    latency_ms: float = 0.0
 
 
 class PredictionRequest(BaseModel):
     model_config = {"protected_namespaces": ()}
+    area: Optional[str] = Field("sample", description="Area name (e.g. sample)")
     scenario: Optional[str] = Field("heavy", description="Scenario name: light, heavy, extreme")
-    model_path: Optional[str] = Field("models/best.pt", description="Path to trained model weights")
+    model_path: Optional[str] = Field("models/best.pt", description="Path to trained model checkpoint")
     recent_rain: Optional[List[List[float]]] = Field(None, description="Recent 8 steps of rain [8, N]")
     recent_fill: Optional[List[List[float]]] = Field(None, description="Recent 8 steps of fill [8, N]")
     recent_river: Optional[List[float]] = Field(None, description="Recent 8 steps of river level [8]")
@@ -130,344 +109,378 @@ class OptimizeResponse(BaseModel):
     gate_schedule: List[GateScheduleItem]
     pump_on: str
     gate_open: str
+    source: str = "model"               # "model", "cache", or "fallback"
+    latency_ms: float = 0.0
 
 
 class OptimizeRequest(BaseModel):
+    area: Optional[str] = Field("sample", description="Area name (e.g. sample)")
     scenario: Optional[str] = Field("heavy", description="Scenario name: light, heavy, extreme")
-    method: Optional[str] = Field("search", description="Optimization algorithm ('rules', 'search', 'genetic')")
+    method: Optional[str] = Field("search", description="Optimization algorithm ('rules', 'search')")
     seed: Optional[int] = Field(0, description="Random seed")
 
 
-class ScenarioResponse(BaseModel):
-    name: str
-    description: str
-    peak_rain_mmh: float
-    river_peak_m: float
-    duration_hours: float
-    time_steps: int
-    dt_seconds: int
-    rain_profile: List[float]
-    river_profile: List[float]
-    total_nodes: int
-    total_edges: int
+# ---------------------------------------------------------------------------
+# Background Warm-Up
+# ---------------------------------------------------------------------------
+def _warmup_optimizer():
+    """Pre-computes and caches optimizer results for standard scenarios on startup."""
+    global CACHE_STATS
+    t0 = time.perf_counter()
+    ds, err = load_area("sample")
+    if ds is not None and err is None:
+        try:
+            from src.opt.optimize import optimize as run_opt
+            for scen_name in ["light", "heavy", "extreme"]:
+                key_name = {"light": "Light rain", "heavy": "Heavy storm", "extreme": "Extreme cloudburst"}.get(scen_name, "Heavy storm")
+                storm_idx = ds.scenarios.get(key_name, 0)
+                rain_T = ds.rain[storm_idx]
+                river_T = ds.river[storm_idx]
+                
+                cache_key = f"sample:{scen_name}:search:0"
+                if cache_key not in OPTIMIZER_CACHE:
+                    res = run_opt(ds.nodes, ds.edges, rain_T, river_T, method="search", seed=0)
+                    OPTIMIZER_CACHE[cache_key] = res
+            CACHE_STATS["warmed"] = True
+        except Exception as e:
+            pass
+    CACHE_STATS["warmup_duration_s"] = round(time.perf_counter() - t0, 2)
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Run warmup asynchronously
+    asyncio.get_event_loop().run_in_executor(None, _warmup_optimizer)
 
 
 # ---------------------------------------------------------------------------
 # API Endpoints
 # ---------------------------------------------------------------------------
-
 @app.get("/")
 def root():
-    """Root info endpoint."""
     return {
         "service": "FloodSense AI API",
-        "description": "Urban Drainage and Flash Flood Predictive Management System",
+        "description": "Urban Drainage and Flash Flood Predictive Management System (All data simulated)",
         "team_role": "Person C (Dashboard & Backend API)",
         "docs_url": "/docs",
         "endpoints": [
-            "GET /scenario/{name}",
-            "POST /predict",
-            "POST /optimize",
-            "GET /sensor-stream",
-            "GET /graph",
-            "GET /health"
+            "GET /health", "GET /areas", "GET /scenarios", "GET /scenario/{name}",
+            "POST /predict", "POST /optimize", "GET /cache/status",
+            "GET /sensor-stream", "GET /graph", "GET /known-spots", "GET /metrics"
         ],
     }
 
 
 @app.get("/health")
 def health():
-    """Health check endpoint."""
-    nodes, edges = get_graph_data()
+    ds, err = load_area("sample")
     return {
         "status": "healthy",
-        "nodes_loaded": len(nodes),
-        "edges_loaded": len(edges),
-        "data_dir": str(DATA_SAMPLE_DIR),
-        "time_step_sec": DT_SECONDS,
+        "default_area": "sample",
+        "nodes_loaded": ds.N if ds else 0,
+        "edges_loaded": ds.E if ds else 0,
+        "time_step_sec": ds.dt_seconds if ds else DT_SECONDS,
+        "model_compatible": ds.is_model_compatible if ds else False,
+        "cache_warmed": CACHE_STATS["warmed"],
     }
 
 
-@app.get("/scenario/{name}", response_model=ScenarioResponse)
+@app.get("/areas")
+def get_areas():
+    """Lists all detected urban study areas and their formats/compatibility."""
+    return {"areas": list_areas()}
+
+
+@app.get("/scenarios")
+def get_scenarios():
+    """Returns the 3 master scenarios with peak rain and storm hydrographs."""
+    ds, err = load_area("sample")
+    if ds is None:
+        raise HTTPException(status_code=500, detail="Sample dataset unavailable.")
+        
+    res = {}
+    for label, s_idx in ds.scenarios.items():
+        key = label.lower().split()[0] # "light", "heavy", "extreme"
+        rain_profile = [round(float(v), 2) for v in ds.rain[s_idx].mean(axis=-1).tolist()]
+        river_profile = [round(float(v), 2) for v in ds.river[s_idx].tolist()]
+        res[key] = {
+            "name": key,
+            "label": label,
+            "storm_index": s_idx,
+            "peak_rainfall_mmh": round(float(ds.rain[s_idx].max()), 1),
+            "rain_profile": rain_profile,
+            "river_profile": river_profile,
+            "duration_hours": round(ds.T * ds.dt_seconds / 3600.0, 1),
+            "steps": ds.T,
+        }
+    return res
+
+
+@app.get("/scenario/{name}")
 def get_scenario(name: str):
-    """
-    Get scenario parameters and synthetic storm hydrograph for light, heavy, or extreme scenarios.
-    """
-    normalized_name = name.lower().strip()
-    scenarios_meta = {
-        "light": {
-            "description": "Light monsoon shower - localized ponding, drainage system within capacity",
-            "peak_rain_mmh": 22.0,
-            "river_peak_m": 1.9,
-            "rain_curve_factor": 0.35,
-        },
-        "heavy": {
-            "description": "Heavy convective storm - high runoff, vulnerable low-elevation nodes face flooding",
-            "peak_rain_mmh": 68.0,
-            "river_peak_m": 3.7,
-            "rain_curve_factor": 1.0,
-        },
-        "extreme": {
-            "description": "Extreme cloudburst & tidal storm surge - widespread drainage overflow, pumps vital",
-            "peak_rain_mmh": 115.0,
-            "river_peak_m": 5.6,
-            "rain_curve_factor": 1.8,
-        },
-    }
-
-    if normalized_name not in scenarios_meta:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Scenario '{name}' not found. Valid scenarios: light, heavy, extreme.",
-        )
-
-    meta = scenarios_meta[normalized_name]
-    nodes_df, edges_df = get_graph_data()
-    T = 72  # 18 hours at 15-minute steps
-
-    # Synthetic temporal curves for the scenario
-    t_arr = np.arange(T)
-    # Bell-shaped storm centered around step 24 (hour 6)
-    peak_step = 24.0
-    sigma = 8.0
-    rain_profile = (meta["peak_rain_mmh"] * np.exp(-0.5 * ((t_arr - peak_step) / sigma) ** 2)).tolist()
-    rain_profile = [round(float(v), 2) for v in rain_profile]
-
-    # River lags storm by ~6 steps (1.5 hours)
-    river_profile = []
-    curr_riv = 0.8
-    for r in rain_profile:
-        curr_riv = 0.95 * curr_riv + (0.02 * meta["rain_curve_factor"]) * (r / 20.0)
-        curr_riv = min(curr_riv, meta["river_peak_m"])
-        river_profile.append(round(float(curr_riv), 2))
-
-    return ScenarioResponse(
-        name=normalized_name,
-        description=meta["description"],
-        peak_rain_mmh=meta["peak_rain_mmh"],
-        river_peak_m=meta["river_peak_m"],
-        duration_hours=18.0,
-        time_steps=T,
-        dt_seconds=DT_SECONDS,
-        rain_profile=rain_profile,
-        river_profile=river_profile,
-        total_nodes=len(nodes_df),
-        total_edges=len(edges_df),
-    )
+    """Returns hydrograph and metadata for a specific scenario."""
+    scens = get_scenarios()
+    normalized = name.lower().strip()
+    if normalized not in scens:
+        raise HTTPException(status_code=404, detail=f"Scenario '{name}' not found. Valid: {list(scens.keys())}")
+    return scens[normalized]
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(req: Optional[PredictionRequest] = None):
-    """
-    Predict flood depth at +1h, +2h, and +3h horizons for every junction node.
-    Conforms strictly to CONTRACT.md PREDICTION JSON format.
-    Tries Person B's src.ml.predict if present; otherwise uses the calibrated physics stub.
+def post_predict(req: Optional[PredictionRequest] = None):
+    """Predicts flood depth at +1h, +2h, and +3h horizons for every junction node.
+    Calls Person B's ST-GNN model in src.ml.predict if compatible; otherwise uses fallback.
     """
     req = req or PredictionRequest()
-    nodes_df, edges_df = get_graph_data()
-    N = len(nodes_df)
-
-    # Check if Person B has implemented predict()
-    try:
-        from src.ml.predict import predict as ml_predict  # type: ignore
-        if req.recent_rain and req.recent_fill and req.recent_river and req.recent_pump_on:
-            recent_dict = {
-                "rain": np.array(req.recent_rain, dtype=np.float32),
-                "fill": np.array(req.recent_fill, dtype=np.float32),
-                "river": np.array(req.recent_river, dtype=np.float32),
-                "pump_on": np.array(req.recent_pump_on, dtype=np.float32),
-            }
-            res = ml_predict(nodes_df, edges_df, recent_dict, model_path=req.model_path)
-            return res
-    except (ImportError, Exception):
-        # Fall back to calibrated contract-compliant stub
-        pass
-
-    # Calibrated synthetic prediction reflecting scenario and topography
-    scenario_multipliers = {
-        "light": 0.2,
-        "heavy": 1.0,
-        "extreme": 2.2,
-    }
-    mult = scenario_multipliers.get(req.scenario.lower() if req.scenario else "heavy", 1.0)
-
-    elevations = nodes_df["elevation_m"].to_numpy(float)
-    min_elev = elevations.min()
-    max_elev = elevations.max()
-    elev_norm = (elevations - min_elev) / (max_elev - min_elev + 1e-6)
-
+    t0 = time.perf_counter()
+    area_name = req.area or "sample"
+    
+    ds, err = load_area(area_name)
+    if ds is None:
+        raise HTTPException(status_code=404, detail=f"Area '{area_name}' could not be loaded: {err}")
+        
+    # Check if we can run Person B's real model
+    if ds.is_model_compatible:
+        try:
+            from src.ml.predict import predict as ml_predict
+            
+            # Prepare 'recent' dict
+            if req.recent_rain and req.recent_fill and req.recent_river and req.recent_pump_on:
+                recent = {
+                    "rain": np.array(req.recent_rain, dtype=np.float32),
+                    "fill": np.array(req.recent_fill, dtype=np.float32),
+                    "river": np.array(req.recent_river, dtype=np.float32),
+                    "pump_on": np.array(req.recent_pump_on, dtype=np.float32),
+                }
+            else:
+                # Build recent from scenario storm at t=20
+                s_key = {"light": "Light rain", "heavy": "Heavy storm", "extreme": "Extreme cloudburst"}.get((req.scenario or "heavy").lower(), "Heavy storm")
+                storm_idx = ds.scenarios.get(s_key, 0)
+                t_step = min(20, ds.T - 1)
+                t_start = max(0, t_step - 8)
+                recent = {
+                    "rain": ds.rain[storm_idx, t_start:t_start+8],
+                    "fill": ds.fill[storm_idx, t_start:t_start+8] if ds.fill is not None else np.zeros((8, ds.N), np.float32),
+                    "river": ds.river[storm_idx, t_start:t_start+8],
+                    "pump_on": ds.pump_on[storm_idx, t_start:t_start+8] if ds.pump_on is not None else np.zeros((8, ds.N), np.float32),
+                }
+                
+            res = ml_predict(ds.nodes, ds.edges, recent, model_path=req.model_path or "models/best.pt")
+            latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+            
+            return PredictionResponse(
+                horizons_h=res.get("horizons_h", [1, 2, 3]),
+                nodes=res.get("nodes", {}),
+                flooded_nodes_3h=int(res.get("flooded_nodes_3h", 0)),
+                worst_node=WorstNodeInfo(**res.get("worst_node", {"node_id": 0, "depth_m": 0.0, "at": "1h"})),
+                source="model",
+                latency_ms=latency_ms,
+            )
+        except Exception as e:
+            pass  # Fall back to calibrated stub
+            
+    # Fallback estimation
+    mult = {"light": 0.2, "heavy": 1.0, "extreme": 2.2}.get((req.scenario or "heavy").lower(), 1.0)
+    elev_col = "elevation_m" if "elevation_m" in ds.nodes.columns else "elevation"
+    elev = ds.nodes[elev_col].to_numpy(float) if elev_col in ds.nodes.columns else np.zeros(ds.N)
+    elev_norm = (elev - elev.min()) / (elev.max() - elev.min() + 1e-6)
+    
     nodes_pred = {}
     flooded_count_3h = 0
-    worst_node_id = 0
+    worst_id = 0
     worst_depth = 0.0
-
-    for i in range(N):
-        # Low-elevation nodes with high catchment accumulate flood depths
+    
+    for i in range(ds.N):
         topo_risk = (1.0 - elev_norm[i]) ** 1.8
-        is_outlet = bool(nodes_df.iloc[i].get("is_outlet", 0))
-
+        is_outlet = bool(ds.nodes.iloc[i].get("is_outlet", 0)) if "is_outlet" in ds.nodes.columns else False
         d1 = float(max(0.0, round(topo_risk * 0.08 * mult, 2)))
         d2 = float(max(0.0, round(topo_risk * 0.24 * mult + (0.04 if is_outlet else 0.0), 2)))
         d3 = float(max(0.0, round(topo_risk * 0.42 * mult + (0.09 if is_outlet else 0.0), 2)))
-
         nodes_pred[str(i)] = {"1h": d1, "2h": d2, "3h": d3}
-
         if d3 > 0.10:
             flooded_count_3h += 1
-
         if d3 > worst_depth:
             worst_depth = d3
-            worst_node_id = i
-
+            worst_id = i
+            
+    latency_ms = round((time.perf_counter() - t0) * 1000, 1)
     return PredictionResponse(
         horizons_h=[1, 2, 3],
         nodes=nodes_pred,
         flooded_nodes_3h=flooded_count_3h,
-        worst_node=WorstNodeInfo(node_id=worst_node_id, depth_m=worst_depth, at="3h"),
+        worst_node=WorstNodeInfo(node_id=worst_id, depth_m=worst_depth, at="3h"),
+        source="fallback",
+        latency_ms=latency_ms,
     )
 
 
 @app.post("/optimize", response_model=OptimizeResponse)
-def optimize(req: Optional[OptimizeRequest] = None):
-    """
-    Compute optimal pump schedules and sluice gate dispatch to minimize flood cost.
-    Conforms strictly to CONTRACT.md OPTIMIZER JSON format.
-    Tries Person B's src.opt.optimize if present; otherwise uses the contract-compliant stub.
-    """
+def post_optimize(req: Optional[OptimizeRequest] = None):
+    """Optimizes pump & sluice gate schedules using Person B's search/rules optimizer."""
     req = req or OptimizeRequest()
-    nodes_df, edges_df = get_graph_data()
-
-    # Try Person B's optimizer if available
-    try:
-        from src.opt.optimize import optimize as opt_func  # type: ignore
-        res = opt_func(nodes_df, edges_df, method=req.method, seed=req.seed)
-        return res
-    except (ImportError, Exception):
-        # Contract-compliant stub
-        pass
-
-    costs = {
-        "light": (12.4, 6.8, 45.2),
-        "heavy": (41.2, 27.9, 32.3),
-        "extreme": (98.6, 68.2, 30.8),
-    }
-    scen_key = req.scenario.lower() if req.scenario else "heavy"
-    cost_before, cost_after, red_pct = costs.get(scen_key, (41.2, 27.9, 32.3))
-
-    # Identify pump-capable nodes and gate edges
-    pump_nodes = nodes_df[nodes_df["has_pump"] == 1]["node_id"].tolist()
-    if not pump_nodes:
-        pump_nodes = [5, 12, 19, 28]
-
-    gate_edges = edges_df[edges_df["is_gate"] == 1]["edge_id"].tolist()
-    if not gate_edges:
-        gate_edges = [10, 24, 40]
-
-    pump_sched = [
-        PumpScheduleItem(step=8 + k * 2, node_id=pid, on=1)
-        for k, pid in enumerate(pump_nodes[:6])
-    ]
-    gate_sched = [
-        GateScheduleItem(step=12 + k * 4, edge_id=gid, open=0)
-        for k, gid in enumerate(gate_edges[:4])
-    ]
-
+    t0 = time.perf_counter()
+    area_name = req.area or "sample"
+    scen_name = (req.scenario or "heavy").lower()
+    method = req.method or "search"
+    seed = req.seed or 0
+    
+    cache_key = f"{area_name}:{scen_name}:{method}:{seed}"
+    if cache_key in OPTIMIZER_CACHE:
+        CACHE_STATS["hits"] += 1
+        cached = OPTIMIZER_CACHE[cache_key]
+        latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+        return OptimizeResponse(
+            scenario_cost_before=cached["scenario_cost_before"],
+            scenario_cost_after=cached["scenario_cost_after"],
+            reduction_pct=cached["reduction_pct"],
+            method=cached["method"],
+            pump_schedule=[PumpScheduleItem(**p) for p in cached["pump_schedule"]],
+            gate_schedule=[GateScheduleItem(**g) for g in cached["gate_schedule"]],
+            pump_on=cached["pump_on"],
+            gate_open=cached["gate_open"],
+            source="cache",
+            latency_ms=latency_ms,
+        )
+        
+    CACHE_STATS["misses"] += 1
+    ds, err = load_area(area_name)
+    if ds is None:
+        raise HTTPException(status_code=404, detail=f"Area '{area_name}' unavailable: {err}")
+        
+    if ds.is_model_compatible:
+        try:
+            from src.opt.optimize import optimize as run_opt
+            s_key = {"light": "Light rain", "heavy": "Heavy storm", "extreme": "Extreme cloudburst"}.get(scen_name, "Heavy storm")
+            storm_idx = ds.scenarios.get(s_key, 0)
+            rain_T = ds.rain[storm_idx]
+            river_T = ds.river[storm_idx]
+            
+            res = run_opt(ds.nodes, ds.edges, rain_T, river_T, method=method, seed=seed)
+            OPTIMIZER_CACHE[cache_key] = res
+            latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+            
+            return OptimizeResponse(
+                scenario_cost_before=res["scenario_cost_before"],
+                scenario_cost_after=res["scenario_cost_after"],
+                reduction_pct=res["reduction_pct"],
+                method=res["method"],
+                pump_schedule=[PumpScheduleItem(**p) for p in res["pump_schedule"]],
+                gate_schedule=[GateScheduleItem(**g) for g in res["gate_schedule"]],
+                pump_on=res["pump_on"],
+                gate_open=res["gate_open"],
+                source="model",
+                latency_ms=latency_ms,
+            )
+        except Exception as e:
+            pass
+            
+    # Fallback stub
+    costs = {"light": (14.2, 7.8, 45.1), "heavy": (41.2, 27.9, 32.3), "extreme": (98.6, 68.2, 30.8)}
+    b, a, r = costs.get(scen_name, (41.2, 27.9, 32.3))
+    latency_ms = round((time.perf_counter() - t0) * 1000, 1)
     return OptimizeResponse(
-        scenario_cost_before=cost_before,
-        scenario_cost_after=cost_after,
-        reduction_pct=red_pct,
-        method=req.method or "search",
-        pump_schedule=pump_sched,
-        gate_schedule=gate_sched,
+        scenario_cost_before=b,
+        scenario_cost_after=a,
+        reduction_pct=r,
+        method=method,
+        pump_schedule=[PumpScheduleItem(step=10, node_id=5, on=1)],
+        gate_schedule=[GateScheduleItem(step=12, edge_id=40, open=0)],
         pump_on="results/opt_pump_on.npy",
         gate_open="results/opt_gate_open.npy",
+        source="fallback",
+        latency_ms=latency_ms,
     )
+
+
+@app.get("/cache/status")
+def get_cache_status():
+    return {
+        "cached_entries": list(OPTIMIZER_CACHE.keys()),
+        "stats": CACHE_STATS,
+    }
 
 
 @app.get("/sensor-stream")
 def get_sensor_stream(
-    step: int = Query(16, ge=0, le=71, description="Simulation step 0..71 (15 min each)"),
-    scenario: str = Query("heavy", description="Scenario name: light, heavy, extreme"),
+    step: int = Query(24, ge=0, le=71),
+    scenario: str = Query("heavy"),
+    area: str = Query("sample"),
 ):
-    """
-    Live IoT sensor stream feed across junction sensors, river gauge, and pump stations.
-    """
-    nodes_df, edges_df = get_graph_data()
-    N = len(nodes_df)
-
-    scen_info = get_scenario(scenario)
-    current_rain = scen_info.rain_profile[step] if step < len(scen_info.rain_profile) else 0.0
-    current_river = scen_info.river_profile[step] if step < len(scen_info.river_profile) else 1.0
-
-    elevations = nodes_df["elevation_m"].to_numpy(float)
-    min_elev = elevations.min()
-    max_elev = elevations.max()
-    elev_norm = (elevations - min_elev) / (max_elev - min_elev + 1e-6)
-
-    # Compute sensor readings for step
-    telemetry = []
-    flooded_count = 0
-    active_pumps = 0
-
-    for i in range(N):
-        has_pump = bool(nodes_df.iloc[i].get("has_pump", 0))
-        is_outlet = bool(nodes_df.iloc[i].get("is_outlet", 0))
-
-        # Dynamic fill and depth at step
-        t_intensity = current_rain / max(scen_info.peak_rain_mmh, 1e-3)
-        node_risk = (1.0 - elev_norm[i]) * t_intensity
-        fill = float(round(min(1.4, max(0.08, node_risk * 1.3 + (0.2 if is_outlet else 0.0))), 2))
-        depth = float(round(max(0.0, (fill - 1.0) * 0.75), 2)) if fill > 1.0 else 0.0
-
-        pump_active = 0
-        if has_pump and (fill > 0.85 or step >= 20):
-            pump_active = 1
-            active_pumps += 1
-            # Active pumping mitigates depth
-            depth = max(0.0, round(depth * 0.45, 2))
-
-        if depth > 0.10:
-            flooded_count += 1
-
-        telemetry.append({
-            "node_id": int(nodes_df.iloc[i]["node_id"]),
-            "fill": fill,
-            "depth_m": depth,
-            "flooded": bool(depth > 0.10),
-            "pump_active": pump_active,
-        })
-
-    hours = (step * DT_SECONDS) // 3600
-    minutes = ((step * DT_SECONDS) % 3600) // 60
-
+    """Simulated IoT stream for river gauge, rainfall, and node telemetry."""
+    ds, err = load_area(area)
+    if ds is None:
+        raise HTTPException(status_code=404, detail="Area not found")
+        
+    s_key = {"light": "Light rain", "heavy": "Heavy storm", "extreme": "Extreme cloudburst"}.get(scenario.lower(), "Heavy storm")
+    storm_idx = ds.scenarios.get(s_key, 0)
+    step = min(step, ds.T - 1)
+    
+    current_rain = float(ds.rain[storm_idx, step].mean())
+    current_river = float(ds.river[storm_idx, step])
+    d_step = ds.depth[storm_idx, step]
+    
+    flooded_count = int((d_step > 0.10).sum())
+    worst_d = float(d_step.max())
+    
     return {
-        "step": step,
-        "time_str": f"T+{hours:02d}:{minutes:02d}:00",
+        "stream_type": "SIMULATED IoT Stream",
+        "area": area,
         "scenario": scenario,
-        "current_rain_mmh": current_rain,
-        "current_river_m": current_river,
-        "flooded_nodes_count": flooded_count,
-        "active_pumps_count": active_pumps,
-        "total_nodes": N,
-        "nodes_sample": telemetry[:20],  # sample first 20 for brief stream payload
-        "telemetry_count": len(telemetry),
+        "step": step,
+        "time_str": step_to_clock(step, ds.dt_seconds),
+        "current_rain_mmh": round(current_rain, 1),
+        "river_level_m": round(current_river, 2),
+        "river_max_threshold_m": 6.0,
+        "flooded_nodes": flooded_count,
+        "worst_depth_m": round(worst_d, 2),
+        "total_nodes": ds.N,
     }
 
 
 @app.get("/graph")
-def get_graph():
-    """
-    Returns the network nodes and edges with coordinates and topology for map visualization.
-    """
-    nodes_df, edges_df = get_graph_data()
+def get_graph(area: str = Query("sample")):
+    """Returns nodes and edges geometry."""
+    ds, err = load_area(area)
+    if ds is None:
+        raise HTTPException(status_code=404, detail="Area not found")
+        
     return {
-        "nodes": nodes_df.to_dict(orient="records"),
-        "edges": edges_df.to_dict(orient="records"),
-        "summary": {
-            "total_nodes": len(nodes_df),
-            "total_edges": len(edges_df),
-            "pumps_count": int(nodes_df.get("has_pump", pd.Series([0])).sum()),
-            "outlets_count": int(nodes_df.get("is_outlet", pd.Series([0])).sum()),
-            "gates_count": int(edges_df.get("is_gate", pd.Series([0])).sum()),
-        },
+        "nodes": ds.nodes.to_dict(orient="records"),
+        "edges": ds.edges.to_dict(orient="records"),
+        "total_nodes": ds.N,
+        "total_edges": ds.E,
     }
+
+
+@app.get("/known-spots")
+def get_known_spots(area: str = Query("hindmata")):
+    """Returns historical flood spots if available."""
+    ds, err = load_area(area)
+    if ds and ds.known_spots is not None:
+        return {"area": area, "known_spots": ds.known_spots.to_dict(orient="records")}
+    return {"area": area, "known_spots": []}
+
+
+@app.get("/metrics")
+def get_metrics():
+    """Reads and parses metrics from results/ directory produced by Person B."""
+    final_metrics_path = RESULTS_DIR / "final_metrics.json"
+    scenario_path = RESULTS_DIR / "scenario_summary.json"
+    
+    res = {"available": False, "models": [], "scenarios": {}}
+    if final_metrics_path.exists():
+        try:
+            with open(final_metrics_path) as f:
+                res["models"] = json.load(f)
+            res["available"] = True
+        except Exception:
+            pass
+            
+    if scenario_path.exists():
+        try:
+            with open(scenario_path) as f:
+                res["scenarios"] = json.load(f)
+        except Exception:
+            pass
+            
+    return res
