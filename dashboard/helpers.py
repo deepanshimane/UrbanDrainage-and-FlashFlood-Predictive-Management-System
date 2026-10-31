@@ -45,6 +45,84 @@ def depth_band(depth_cm: float) -> Tuple[str, List[int]]:
         return "Extreme", [159, 18, 57, 240]      # Dark red / Rose
 
 
+def human_severity_desc(depth_cm: float) -> str:
+    """Translates depth into everyday physical reference for citizens and municipal teams."""
+    if depth_cm < 10.0:
+        return "🟢 Safe (Pavement dry, normal traffic)"
+    elif depth_cm < 25.0:
+        return "🟡 Ankle-Deep (Slow traffic, small pooling)"
+    elif depth_cm < 50.0:
+        return "🟠 Knee-Deep (Small cars stall, traffic diverted)"
+    else:
+        return "🔴 Waist-Deep (Road closed, shops inundated)"
+
+
+# Known civic landmarks for Dadar-Hindmata-Parel and Kurla
+MUMBAI_LANDMARKS: Dict[str, Dict[str, Tuple[float, float]]] = {
+    "hindmata": {
+        "Hindmata Flyover Junction": (19.0091, 72.8419),
+        "Pramod Mahajan Kala Park (Holding Tank)": (19.0105, 72.8415),
+        "Dadar TT Circle": (19.0175, 72.8435),
+        "Gandhi Market / King's Circle": (19.0352, 72.8592),
+        "Britannia Outfall / Sewri": (18.9760, 72.8465),
+        "Parel TT / Bhoiwada": (19.0035, 72.8410),
+        "Chitra Cinema / Dr. Ambedkar Rd": (19.0140, 72.8425),
+    },
+    "kurla": {
+        "Bail Bazar Junction": (19.0750, 72.8830),
+        "Kranti Nagar (Mithi River Bank)": (19.0725, 72.8755),
+        "CST Road Mithi River Bridge": (19.0680, 72.8680),
+        "Kurla Station West Subway": (19.0655, 72.8790),
+    }
+}
+
+
+def get_landmark_for_node(area_name: str, node_id: int, lat: float, lon: float) -> str:
+    """Resolves an abstract node index to a recognizable real-world street location."""
+    area_key = "hindmata" if "hindmata" in area_name.lower() or "dadar" in area_name.lower() else ("kurla" if "kurla" in area_name.lower() else None)
+    
+    # Specific known node overrides for Hindmata
+    if area_key == "hindmata":
+        if node_id in (50, 53):
+            return "Hindmata Cinema Junction"
+        elif node_id in (70, 71):
+            return "Dadar TT Circle"
+        elif node_id == 76:
+            return "Gandhi Market / King's Circle"
+        elif node_id == 16:
+            return "Britannia Pumping Outfall"
+        elif node_id == 6:
+            return "Parel TT / Bhoiwada"
+        elif node_id == 10:
+            return "Pramod Mahajan Park Tank"
+            
+    if area_key == "kurla":
+        if node_id in (80, 81):
+            return "Bail Bazar Junction"
+        elif node_id in (75, 76):
+            return "Kranti Nagar (Mithi Bank)"
+        elif node_id in (21, 22):
+            return "CST Road Mithi Bridge"
+        elif node_id in (46, 47):
+            return "Kurla Station West Area"
+
+    # Nearest landmark search
+    if area_key and area_key in MUMBAI_LANDMARKS:
+        best_name = None
+        min_dist = float("inf")
+        for name, (l_lat, l_lon) in MUMBAI_LANDMARKS[area_key].items():
+            dist = haversine_distance_m(lat, lon, l_lat, l_lon)
+            if dist < min_dist:
+                min_dist = dist
+                best_name = name
+        if best_name and min_dist <= 350.0:
+            return f"{best_name} ({int(min_dist)}m)"
+        elif best_name:
+            return f"Near {best_name}"
+
+    return f"Street Junction #{node_id}"
+
+
 def build_recent(ds: Any, storm_idx: int, t_current: int, history_steps: int = 8) -> Optional[Dict[str, np.ndarray]]:
     """Extracts recent window of history [history_steps, N] ending at t_current.
     If t_current < history_steps, returns None.
@@ -73,7 +151,6 @@ def build_recent(ds: Any, storm_idx: int, t_current: int, history_steps: int = 8
 
 def rank_storms_by_peak_rain(rain_array: np.ndarray) -> Dict[str, int]:
     """Ranks storms in dataset by peak spatial rainfall and selects Light, Heavy, Extreme."""
-    # rain_array: [S, T, N] or [S, T]
     if rain_array.ndim == 3:
         peak_per_storm = rain_array.max(axis=(1, 2))
     elif rain_array.ndim == 2:
@@ -121,8 +198,8 @@ def nearest_node(lat: float, lon: float, nodes: pd.DataFrame) -> Tuple[int, floa
     return best_id, round(min_dist, 1)
 
 
-def risk_table(depth_by_node_m: np.ndarray, nodes: pd.DataFrame, top_k: int = 10, pumps: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-    """Generates a ranked risk table for top-k inundated nodes."""
+def risk_table(depth_by_node_m: np.ndarray, nodes: pd.DataFrame, top_k: int = 10, pumps: Optional[pd.DataFrame] = None, area_name: str = "hindmata") -> pd.DataFrame:
+    """Generates a ranked risk table for top-k inundated nodes with recognizable landmark names."""
     N = len(depth_by_node_m)
     node_id_col = "node_id" if "node_id" in nodes.columns else ("id" if "id" in nodes.columns else None)
     
@@ -135,6 +212,8 @@ def risk_table(depth_by_node_m: np.ndarray, nodes: pd.DataFrame, top_k: int = 10
         elev = float(nodes.iloc[i]["elevation_m"]) if "elevation_m" in nodes.columns else (float(nodes.iloc[i]["elevation"]) if "elevation" in nodes.columns else 0.0)
         has_pump = int(nodes.iloc[i]["has_pump"]) if "has_pump" in nodes.columns else 0
         band_name, _ = depth_band(d_cm)
+        landmark = get_landmark_for_node(area_name, nid, lat, lon)
+        severity_desc = human_severity_desc(d_cm)
         
         # Distance to nearest pump
         pump_dist_m = 0.0
@@ -143,7 +222,9 @@ def risk_table(depth_by_node_m: np.ndarray, nodes: pd.DataFrame, top_k: int = 10
         
         records.append({
             "node_id": nid,
+            "landmark": landmark,
             "depth_cm": d_cm,
+            "severity": severity_desc,
             "band": band_name,
             "elevation_m": round(elev, 2),
             "lat": lat,
@@ -155,4 +236,3 @@ def risk_table(depth_by_node_m: np.ndarray, nodes: pd.DataFrame, top_k: int = 10
     df = pd.DataFrame(records)
     df = df.sort_values(by="depth_cm", ascending=False).reset_index(drop=True)
     return df.head(top_k)
-
