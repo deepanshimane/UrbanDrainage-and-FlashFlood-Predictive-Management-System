@@ -27,7 +27,11 @@ from dashboard.helpers import (
     risk_table,
     nearest_node,
 )
-from src.sim.simulator import simulate, DT, RIVER_MAX
+try:
+    from src.sim.simulator import simulate, DT, RIVER_MAX
+except ImportError:
+    from src.sim.simulator import simulate, DT
+    RIVER_MAX = 6.0
 
 # ---------------------------------------------------------------------------
 # 4.1 Shell & Configuration
