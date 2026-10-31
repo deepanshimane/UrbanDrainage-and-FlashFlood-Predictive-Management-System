@@ -36,20 +36,26 @@ def test_scenarios_endpoint():
 
 
 def test_predict_endpoint_contract():
-    resp = client.post("/predict", json={"area": "sample", "scenario": "heavy"})
+    # Test primary Hindmata area (ST-GNN model inference)
+    resp = client.post("/predict", json={"area": "hindmata", "scenario": "heavy"})
     assert resp.status_code == 200
     data = resp.json()
     assert "horizons_h" in data
     assert data["horizons_h"] == [1, 2, 3]
     assert "nodes" in data
-    assert len(data["nodes"]) == 200
+    assert len(data["nodes"]) == 89
     assert "worst_node" in data
-    assert "source" in data
+    assert data["source"] == "model"
     assert "latency_ms" in data
+
+    # Test sample benchmark area fallback
+    resp_sample = client.post("/predict", json={"area": "sample", "scenario": "heavy"})
+    assert resp_sample.status_code == 200
+    assert len(resp_sample.json()["nodes"]) == 200
 
 
 def test_optimize_endpoint_contract():
-    resp = client.post("/optimize", json={"area": "sample", "scenario": "heavy", "method": "search", "seed": 0})
+    resp = client.post("/optimize", json={"area": "hindmata", "scenario": "heavy", "method": "search", "seed": 0})
     assert resp.status_code == 200
     data = resp.json()
     assert "scenario_cost_before" in data
@@ -58,15 +64,15 @@ def test_optimize_endpoint_contract():
     assert "pump_schedule" in data
     assert "gate_schedule" in data
     assert data["reduction_pct"] >= 0.0
-    assert "source" in data
+    assert data["source"] in ("model", "cache")
     assert "latency_ms" in data
 
 
 def test_optimize_cache_hits():
     # Cold / Cached check
-    resp1 = client.post("/optimize", json={"area": "sample", "scenario": "light", "method": "search", "seed": 0})
+    resp1 = client.post("/optimize", json={"area": "hindmata", "scenario": "light", "method": "search", "seed": 0})
     assert resp1.status_code == 200
-    resp2 = client.post("/optimize", json={"area": "sample", "scenario": "light", "method": "search", "seed": 0})
+    resp2 = client.post("/optimize", json={"area": "hindmata", "scenario": "light", "method": "search", "seed": 0})
     assert resp2.status_code == 200
     assert resp2.json()["source"] == "cache"
 
@@ -81,7 +87,7 @@ def test_metrics_endpoint():
 
 
 def test_sensor_stream_endpoint():
-    resp = client.get("/sensor-stream?step=16&scenario=heavy&area=sample")
+    resp = client.get("/sensor-stream?step=16&scenario=heavy&area=hindmata")
     assert resp.status_code == 200
     data = resp.json()
     assert data["step"] == 16
@@ -94,4 +100,3 @@ def test_invalid_scenario_error():
     resp = client.get("/scenario/non_existent_storm")
     assert resp.status_code == 404
     assert "detail" in resp.json()
-

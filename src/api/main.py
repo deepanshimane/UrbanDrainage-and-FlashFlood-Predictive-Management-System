@@ -51,8 +51,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_SAMPLE_DIR = REPO_ROOT / "data" / "sample"
+DATA_DIR = REPO_ROOT / "data"
 RESULTS_DIR = REPO_ROOT / "results"
+DEFAULT_AREA = "hindmata"
 
 # In-memory optimizer cache: key -> dict
 OPTIMIZER_CACHE: Dict[str, Any] = {}
@@ -79,7 +80,7 @@ class PredictionResponse(BaseModel):
 
 class PredictionRequest(BaseModel):
     model_config = {"protected_namespaces": ()}
-    area: Optional[str] = Field("sample", description="Area name (e.g. sample)")
+    area: Optional[str] = Field("hindmata", description="Area name (e.g. hindmata)")
     scenario: Optional[str] = Field("heavy", description="Scenario name: light, heavy, extreme")
     model_path: Optional[str] = Field("models/best.pt", description="Path to trained model checkpoint")
     recent_rain: Optional[List[List[float]]] = Field(None, description="Recent 8 steps of rain [8, N]")
@@ -114,7 +115,7 @@ class OptimizeResponse(BaseModel):
 
 
 class OptimizeRequest(BaseModel):
-    area: Optional[str] = Field("sample", description="Area name (e.g. sample)")
+    area: Optional[str] = Field("hindmata", description="Area name (e.g. hindmata)")
     scenario: Optional[str] = Field("heavy", description="Scenario name: light, heavy, extreme")
     method: Optional[str] = Field("search", description="Optimization algorithm ('rules', 'search')")
     seed: Optional[int] = Field(0, description="Random seed")
@@ -127,7 +128,7 @@ def _warmup_optimizer():
     """Pre-computes and caches optimizer results for standard scenarios on startup."""
     global CACHE_STATS
     t0 = time.perf_counter()
-    ds, err = load_area("sample")
+    ds, err = load_area(DEFAULT_AREA)
     if ds is not None and err is None:
         try:
             from src.opt.optimize import optimize as run_opt
@@ -137,12 +138,12 @@ def _warmup_optimizer():
                 rain_T = ds.rain[storm_idx]
                 river_T = ds.river[storm_idx]
                 
-                cache_key = f"sample:{scen_name}:search:0"
+                cache_key = f"{DEFAULT_AREA}:{scen_name}:search:0"
                 if cache_key not in OPTIMIZER_CACHE:
                     res = run_opt(ds.nodes, ds.edges, rain_T, river_T, method="search", seed=0)
                     OPTIMIZER_CACHE[cache_key] = res
             CACHE_STATS["warmed"] = True
-        except Exception as e:
+        except Exception:
             pass
     CACHE_STATS["warmup_duration_s"] = round(time.perf_counter() - t0, 2)
 
@@ -162,6 +163,7 @@ def root():
         "service": "FloodSense AI API",
         "description": "Urban Drainage and Flash Flood Predictive Management System (All data simulated)",
         "team_role": "Person C (Dashboard & Backend API)",
+        "default_area": DEFAULT_AREA,
         "docs_url": "/docs",
         "endpoints": [
             "GET /health", "GET /areas", "GET /scenarios", "GET /scenario/{name}",
@@ -172,11 +174,11 @@ def root():
 
 
 @app.get("/health")
-def health():
-    ds, err = load_area("sample")
+def health(area: Optional[str] = DEFAULT_AREA):
+    ds, err = load_area(area or DEFAULT_AREA)
     return {
         "status": "healthy",
-        "default_area": "sample",
+        "default_area": area or DEFAULT_AREA,
         "nodes_loaded": ds.N if ds else 0,
         "edges_loaded": ds.E if ds else 0,
         "time_step_sec": ds.dt_seconds if ds else DT_SECONDS,
@@ -192,22 +194,35 @@ def get_areas():
 
 
 @app.get("/scenarios")
-def get_scenarios():
+def get_scenarios(area: Optional[str] = DEFAULT_AREA):
     """Returns the 3 master scenarios with peak rain and storm hydrographs."""
-    ds, err = load_area("sample")
+    ds, err = load_area(area or DEFAULT_AREA)
     if ds is None:
-        raise HTTPException(status_code=500, detail="Sample dataset unavailable.")
+        raise HTTPException(status_code=500, detail=f"Dataset for area '{area}' unavailable: {err}")
         
+    summary_data = {}
+    summary_path = RESULTS_DIR / "scenario_summary.json"
+    if summary_path.exists():
+        try:
+            with open(summary_path) as f:
+                summary_data = json.load(f)
+        except Exception:
+            pass
+
     res = {}
     for label, s_idx in ds.scenarios.items():
         key = label.lower().split()[0] # "light", "heavy", "extreme"
         rain_profile = [round(float(v), 2) for v in ds.rain[s_idx].mean(axis=-1).tolist()]
         river_profile = [round(float(v), 2) for v in ds.river[s_idx].tolist()]
+        peak_rain = round(float(ds.rain[s_idx].max()), 1)
+        if key in summary_data and "peak_rainfall_mmh" in summary_data[key]:
+            peak_rain = float(summary_data[key]["peak_rainfall_mmh"])
+
         res[key] = {
             "name": key,
             "label": label,
             "storm_index": s_idx,
-            "peak_rainfall_mmh": round(float(ds.rain[s_idx].max()), 1),
+            "peak_rainfall_mmh": peak_rain,
             "rain_profile": rain_profile,
             "river_profile": river_profile,
             "duration_hours": round(ds.T * ds.dt_seconds / 3600.0, 1),
@@ -217,9 +232,9 @@ def get_scenarios():
 
 
 @app.get("/scenario/{name}")
-def get_scenario(name: str):
+def get_scenario(name: str, area: Optional[str] = DEFAULT_AREA):
     """Returns hydrograph and metadata for a specific scenario."""
-    scens = get_scenarios()
+    scens = get_scenarios(area=area)
     normalized = name.lower().strip()
     if normalized not in scens:
         raise HTTPException(status_code=404, detail=f"Scenario '{name}' not found. Valid: {list(scens.keys())}")
@@ -233,7 +248,7 @@ def post_predict(req: Optional[PredictionRequest] = None):
     """
     req = req or PredictionRequest()
     t0 = time.perf_counter()
-    area_name = req.area or "sample"
+    area_name = req.area or DEFAULT_AREA
     
     ds, err = load_area(area_name)
     if ds is None:
@@ -253,10 +268,10 @@ def post_predict(req: Optional[PredictionRequest] = None):
                     "pump_on": np.array(req.recent_pump_on, dtype=np.float32),
                 }
             else:
-                # Build recent from scenario storm at t=20
+                # Build recent from scenario storm at t=18
                 s_key = {"light": "Light rain", "heavy": "Heavy storm", "extreme": "Extreme cloudburst"}.get((req.scenario or "heavy").lower(), "Heavy storm")
                 storm_idx = ds.scenarios.get(s_key, 0)
-                t_step = min(20, ds.T - 1)
+                t_step = min(18, ds.T - 1)
                 t_start = max(0, t_step - 8)
                 recent = {
                     "rain": ds.rain[storm_idx, t_start:t_start+8],
@@ -319,7 +334,7 @@ def post_optimize(req: Optional[OptimizeRequest] = None):
     """Optimizes pump & sluice gate schedules using Person B's search/rules optimizer."""
     req = req or OptimizeRequest()
     t0 = time.perf_counter()
-    area_name = req.area or "sample"
+    area_name = req.area or DEFAULT_AREA
     scen_name = (req.scenario or "heavy").lower()
     method = req.method or "search"
     seed = req.seed or 0
@@ -375,16 +390,16 @@ def post_optimize(req: Optional[OptimizeRequest] = None):
             pass
             
     # Fallback stub
-    costs = {"light": (14.2, 7.8, 45.1), "heavy": (41.2, 27.9, 32.3), "extreme": (98.6, 68.2, 30.8)}
-    b, a, r = costs.get(scen_name, (41.2, 27.9, 32.3))
+    costs = {"light": (168.98, 163.66, 3.1), "heavy": (471.29, 463.08, 1.7), "extreme": (829.27, 824.26, 0.6)}
+    b, a, r = costs.get(scen_name, (471.29, 463.08, 1.7))
     latency_ms = round((time.perf_counter() - t0) * 1000, 1)
     return OptimizeResponse(
         scenario_cost_before=b,
         scenario_cost_after=a,
         reduction_pct=r,
         method=method,
-        pump_schedule=[PumpScheduleItem(step=10, node_id=5, on=1)],
-        gate_schedule=[GateScheduleItem(step=12, edge_id=40, open=0)],
+        pump_schedule=[PumpScheduleItem(step=0, node_id=7, on=1)],
+        gate_schedule=[GateScheduleItem(step=12, edge_id=14, open=0)],
         pump_on="results/opt_pump_on.npy",
         gate_open="results/opt_gate_open.npy",
         source="fallback",
@@ -402,9 +417,9 @@ def get_cache_status():
 
 @app.get("/sensor-stream")
 def get_sensor_stream(
-    step: int = Query(24, ge=0, le=71),
+    step: int = Query(18, ge=0, le=95),
     scenario: str = Query("heavy"),
-    area: str = Query("sample"),
+    area: str = Query(DEFAULT_AREA),
 ):
     """Simulated IoT stream for river gauge, rainfall, and node telemetry."""
     ds, err = load_area(area)
@@ -438,7 +453,7 @@ def get_sensor_stream(
 
 
 @app.get("/graph")
-def get_graph(area: str = Query("sample")):
+def get_graph(area: str = Query(DEFAULT_AREA)):
     """Returns nodes and edges geometry."""
     ds, err = load_area(area)
     if ds is None:
@@ -453,7 +468,7 @@ def get_graph(area: str = Query("sample")):
 
 
 @app.get("/known-spots")
-def get_known_spots(area: str = Query("hindmata")):
+def get_known_spots(area: str = Query(DEFAULT_AREA)):
     """Returns historical flood spots if available."""
     ds, err = load_area(area)
     if ds and ds.known_spots is not None:

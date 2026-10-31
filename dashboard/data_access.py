@@ -13,6 +13,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 MODELS_DIR = REPO_ROOT / "models"
+RESULTS_DIR = REPO_ROOT / "results"
 
 
 @dataclass
@@ -26,11 +27,11 @@ class Dataset:
     gate_open: Optional[np.ndarray] = None # [S, T, E]
     fill: Optional[np.ndarray] = None      # [S, T, N]
     depth: Optional[np.ndarray] = None     # [S, T, N] metres
-    dt_seconds: float = 900.0
+    dt_seconds: float = 600.0
     T: int = 72
-    N: int = 200
-    E: int = 358
-    S: int = 60
+    N: int = 89
+    E: int = 140
+    S: int = 3
     is_model_compatible: bool = True
     incompatible_reason: str = ""
     notes: List[str] = field(default_factory=list)
@@ -48,77 +49,81 @@ def get_model_constraints() -> Dict[str, Any]:
                 return json.load(f)
         except Exception:
             pass
-    return {"num_nodes": 200, "history_steps": 8, "horizon_steps": 12, "dt_seconds": 900.0}
+    return {"num_nodes": 89, "history_steps": 8, "horizon_steps": 12, "dt_seconds": 600.0}
 
 
 def list_areas(base_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Scans data/ directory and returns detected areas with format and compatibility."""
     d = base_dir or DATA_DIR
+    meta = get_model_constraints()
+    expected_n = meta.get("num_nodes", 89)
     results = []
     
-    # 1. Sample area
-    sample_path = d / "sample"
-    if sample_path.exists():
-        has_nodes = (sample_path / "nodes.csv").exists()
-        has_depth = (sample_path / "depth.npy").exists()
-        status = "contract" if (has_nodes and has_depth) else "incomplete"
-        results.append({
-            "name": "sample",
-            "display_name": "Sample Synthetic Area (Mumbai Ward)",
-            "format": "contract",
-            "model_compatible": True,
-            "dt_seconds": 900.0,
-            "status": "ready" if status == "contract" else "incomplete",
-            "reason": "" if status == "contract" else "Missing .npy arrays (run make_fake_data)",
-        })
-        
-    # 2. Hindmata area
+    # 1. Hindmata area (Primary study area)
     hindmata_path = d / "hindmata"
     if hindmata_path.exists():
         has_nodes = (hindmata_path / "nodes.csv").exists()
-        has_dataset = (hindmata_path / "dataset" / "X.npy").exists()
-        status = "areaA" if has_nodes else "incomplete"
+        has_scenarios = (RESULTS_DIR / "scenarios" / "heavy_rain.npy").exists() or (hindmata_path / "dataset" / "X.npy").exists()
+        is_compat = (expected_n == 89)
         results.append({
             "name": "hindmata",
-            "display_name": "Mumbai: Dadar-Hindmata-Parel (Area A)",
+            "display_name": "Mumbai: Dadar-Hindmata-Parel (Primary Area)",
             "format": "areaA",
-            "model_compatible": False,
+            "model_compatible": is_compat,
             "dt_seconds": 600.0,
-            "status": "ready" if has_dataset else "nodes_only",
-            "reason": "Trained ST-GNN requires N=200, dt=15m (Sample format). Hindmata uses N=89, dt=10m.",
+            "status": "ready" if (has_nodes and has_scenarios) else "nodes_only",
+            "reason": "" if is_compat else f"Model trained for N={expected_n}, Hindmata has N=89",
         })
     else:
         results.append({
             "name": "hindmata",
-            "display_name": "Mumbai: Dadar-Hindmata-Parel (Area A)",
+            "display_name": "Mumbai: Dadar-Hindmata-Parel (Primary Area)",
             "format": "areaA",
             "model_compatible": False,
             "dt_seconds": 600.0,
             "status": "disabled",
             "reason": "Area files not yet generated on this branch",
         })
-        
-    # 3. Kurla area
+
+    # 2. Kurla area (Scalability catchment)
     kurla_path = d / "kurla"
     if kurla_path.exists():
+        has_nodes = (kurla_path / "nodes.csv").exists()
         results.append({
             "name": "kurla",
-            "display_name": "Mumbai: Kurla-Mithi River",
+            "display_name": "Mumbai: Kurla-Mithi River (Scalability Area)",
             "format": "areaA",
             "model_compatible": False,
             "dt_seconds": 600.0,
-            "status": "ready",
-            "reason": "Model retrain needed for Kurla topography",
+            "status": "ready" if has_nodes else "incomplete",
+            "reason": "Scalability evaluation area (N=91). ST-GNN specialized for Hindmata (N=89).",
         })
     else:
         results.append({
             "name": "kurla",
-            "display_name": "Mumbai: Kurla-Mithi River (Scalability)",
+            "display_name": "Mumbai: Kurla-Mithi River (Scalability Area)",
             "format": "unrecognised",
             "model_compatible": False,
             "dt_seconds": 0.0,
             "status": "disabled",
-            "reason": "Second area dataset not yet provided by Person A",
+            "reason": "Second area dataset not yet provided",
+        })
+
+    # 3. Sample benchmark area
+    sample_path = d / "sample"
+    if sample_path.exists():
+        has_nodes = (sample_path / "nodes.csv").exists()
+        has_depth = (sample_path / "depth.npy").exists()
+        status = "contract" if (has_nodes and has_depth) else "incomplete"
+        is_compat = (expected_n == 200)
+        results.append({
+            "name": "sample",
+            "display_name": "Sample Synthetic Area (Mumbai Ward Benchmark)",
+            "format": "contract",
+            "model_compatible": is_compat,
+            "dt_seconds": 900.0,
+            "status": "ready" if status == "contract" else "incomplete",
+            "reason": "" if is_compat else f"Model trained for N={expected_n}; sample has N=200",
         })
         
     return results
@@ -135,9 +140,140 @@ def load_area(name: str, base_dir: Optional[Path] = None) -> Tuple[Optional[Data
         return None, f"Directory '{target_dir}' does not exist."
         
     meta = get_model_constraints()
-    expected_n = meta.get("num_nodes", 200)
+    expected_n = meta.get("num_nodes", 89)
     
-    if name == "sample":
+    if name == "hindmata":
+        try:
+            nodes = pd.read_csv(target_dir / "nodes.csv")
+            edges = pd.read_csv(target_dir / "edges.csv")
+            N = len(nodes)
+            E = len(edges)
+            
+            known_spots = pd.read_csv(target_dir / "known_spots.csv") if (target_dir / "known_spots.csv").exists() else None
+            pumps = pd.read_csv(target_dir / "pumps.csv") if (target_dir / "pumps.csv").exists() else None
+
+            # Check if canonical pitch scenarios exist in results/scenarios/
+            scen_dir = RESULTS_DIR / "scenarios"
+            has_pitch_scenarios = (
+                (scen_dir / "light_rain.npy").exists() and
+                (scen_dir / "heavy_rain.npy").exists() and
+                (scen_dir / "extreme_rain.npy").exists()
+            )
+            
+            from src.sim.simulator import simulate, DT
+            
+            if has_pitch_scenarios:
+                light_rain = np.load(scen_dir / "light_rain.npy")
+                light_river = np.load(scen_dir / "light_river.npy")
+                heavy_rain = np.load(scen_dir / "heavy_rain.npy")
+                heavy_river = np.load(scen_dir / "heavy_river.npy")
+                extreme_rain = np.load(scen_dir / "extreme_rain.npy")
+                extreme_river = np.load(scen_dir / "extreme_river.npy")
+                
+                T = light_rain.shape[0]
+                rain = np.stack([light_rain, heavy_rain, extreme_rain], axis=0) # [3, T, N]
+                river = np.stack([light_river, heavy_river, extreme_river], axis=0) # [3, T]
+                
+                # Simulate baseline depth and fill for each scenario
+                no_pump = np.zeros((T, N), dtype=np.float32)
+                all_open = np.ones((T, E), dtype=np.float32)
+                
+                sim_light = simulate(nodes, edges, light_rain, light_river, no_pump, all_open)
+                sim_heavy = simulate(nodes, edges, heavy_rain, heavy_river, no_pump, all_open)
+                sim_extreme = simulate(nodes, edges, extreme_rain, extreme_river, no_pump, all_open)
+                
+                depth = np.stack([sim_light["depth"], sim_heavy["depth"], sim_extreme["depth"]], axis=0)
+                fill = np.stack([sim_light["fill"], sim_heavy["fill"], sim_extreme["fill"]], axis=0)
+                pump_on = np.zeros((3, T, N), dtype=np.float32)
+                gate_open = np.ones((3, T, E), dtype=np.float32)
+                
+                scenarios = {"Light rain": 0, "Heavy storm": 1, "Extreme cloudburst": 2}
+                S = 3
+            elif (target_dir / "dataset" / "X.npy").exists():
+                X = np.load(target_dir / "dataset" / "X.npy") # [S, 96, N, 4]
+                S, T, _, _ = X.shape
+                rain = X[..., 0]
+                river = X[..., 1].mean(axis=-1)
+                depth = X[..., 2]
+                pump_on = X[..., 3]
+                fill = np.zeros_like(depth)
+                gate_open = np.ones((S, T, E), dtype=np.float32)
+                scenarios = {"Light rain": 0, "Heavy storm": 1, "Extreme cloudburst": 2}
+            else:
+                T = 72
+                S = 1
+                rain = np.zeros((1, T, N), dtype=np.float32)
+                river = np.zeros((1, T), dtype=np.float32)
+                depth = np.zeros((1, T, N), dtype=np.float32)
+                fill = np.zeros((1, T, N), dtype=np.float32)
+                pump_on = np.zeros((1, T, N), dtype=np.float32)
+                gate_open = np.ones((1, T, E), dtype=np.float32)
+                scenarios = {"Light rain": 0, "Heavy storm": 0, "Extreme cloudburst": 0}
+
+            is_compat = (N == expected_n)
+            incompat_reason = "" if is_compat else f"Node count {N} != model {expected_n}"
+            
+            ds = Dataset(
+                name="hindmata",
+                nodes=nodes,
+                edges=edges,
+                rain=rain,
+                river=river,
+                pump_on=pump_on,
+                gate_open=gate_open,
+                fill=fill,
+                depth=depth,
+                dt_seconds=DT,
+                T=T, N=N, E=E, S=S,
+                is_model_compatible=is_compat,
+                incompatible_reason=incompat_reason,
+                known_spots=known_spots,
+                pumps=pumps,
+                scenarios=scenarios,
+                notes=["Primary real study area: Mumbai Dadar-Hindmata-Parel (N=89, E=140, 3 pumps). ST-GNN forecast & AI dispatch active."],
+            )
+            return ds, None
+        except Exception as e:
+            return None, f"Error loading hindmata area: {str(e)}"
+
+    elif name == "kurla":
+        try:
+            nodes = pd.read_csv(target_dir / "nodes.csv")
+            edges = pd.read_csv(target_dir / "edges.csv")
+            N = len(nodes)
+            E = len(edges)
+            known_spots = pd.read_csv(target_dir / "known_spots.csv") if (target_dir / "known_spots.csv").exists() else None
+            pumps = pd.read_csv(target_dir / "pumps.csv") if (target_dir / "pumps.csv").exists() else None
+            
+            T = 72
+            S = 1
+            rain = np.zeros((1, T, N), dtype=np.float32)
+            river = np.zeros((1, T), dtype=np.float32)
+            depth = np.zeros((1, T, N), dtype=np.float32)
+            fill = np.zeros((1, T, N), dtype=np.float32)
+            
+            ds = Dataset(
+                name="kurla",
+                nodes=nodes,
+                edges=edges,
+                rain=rain,
+                river=river,
+                depth=depth,
+                fill=fill,
+                dt_seconds=600.0,
+                T=T, N=N, E=E, S=S,
+                is_model_compatible=False,
+                incompatible_reason="Scalability validation area (N=91). ST-GNN model is trained on Hindmata (N=89).",
+                known_spots=known_spots,
+                pumps=pumps,
+                scenarios={"Light rain": 0, "Heavy storm": 0, "Extreme cloudburst": 0},
+                notes=["Secondary Mumbai catchment: Kurla / Mithi River (N=91, E=105). Demonstrates cross-ward scalability."],
+            )
+            return ds, None
+        except Exception as e:
+            return None, f"Error loading kurla area: {str(e)}"
+
+    elif name == "sample":
         try:
             nodes = pd.read_csv(target_dir / "nodes.csv")
             edges = pd.read_csv(target_dir / "edges.csv")
@@ -178,84 +314,11 @@ def load_area(name: str, base_dir: Optional[Path] = None) -> Tuple[Optional[Data
                 is_model_compatible=is_compat,
                 incompatible_reason=incompat_reason,
                 scenarios=scenarios,
-                notes=["Master contract format (dt=900s, T=72, N=200, S=60)."],
+                notes=["Synthetic benchmark format (dt=900s, T=72, N=200, S=60)."],
             )
             return ds, None
         except Exception as e:
             return None, f"Error loading sample dataset: {str(e)}"
             
-    elif name == "hindmata":
-        # Load Hindmata format
-        try:
-            nodes = pd.read_csv(target_dir / "nodes.csv")
-            edges = pd.read_csv(target_dir / "edges.csv")
-            
-            known_spots = pd.read_csv(target_dir / "known_spots.csv") if (target_dir / "known_spots.csv").exists() else None
-            pumps = pd.read_csv(target_dir / "pumps.csv") if (target_dir / "pumps.csv").exists() else None
-            
-            dataset_dir = target_dir / "dataset"
-            if (dataset_dir / "X.npy").exists():
-                X = np.load(dataset_dir / "X.npy") # [S, 96, N, 4]
-                S, T, N, F = X.shape
-                rain = X[..., 0]   # rain_mm
-                river = X[..., 1].mean(axis=-1) # tide_m
-                depth = X[..., 2]  # depth_m
-                pump_on = X[..., 3]
-                
-                scenarios = {"Light rain": 0, "Heavy storm": 1, "Extreme cloudburst": 2}
-                if (dataset_dir / "scenarios.json").exists():
-                    try:
-                        with open(dataset_dir / "scenarios.json") as f:
-                            scen_json = json.load(f)
-                        scenarios = {
-                            "Light rain": int(scen_json.get("light_rain", 0)),
-                            "Heavy storm": int(scen_json.get("heavy_storm", 1)),
-                            "Extreme cloudburst": int(scen_json.get("extreme_cloudburst", 2)),
-                        }
-                    except Exception:
-                        pass
-                
-                ds = Dataset(
-                    name="hindmata",
-                    nodes=nodes,
-                    edges=edges,
-                    rain=rain,
-                    river=river,
-                    pump_on=pump_on,
-                    gate_open=None,
-                    fill=None,
-                    depth=depth,
-                    dt_seconds=600.0,
-                    T=T, N=N, E=len(edges), S=S,
-                    is_model_compatible=False,
-                    incompatible_reason="Forecast model was trained on the sample format (dt=15m, N=200); retrain needed for Hindmata (dt=10m, N=89).",
-                    known_spots=known_spots,
-                    pumps=pumps,
-                    scenarios=scenarios,
-                    notes=["Person A dataset (dt=600s, T=96, N=89). ML forecast disabled."],
-                )
-                return ds, None
-            else:
-                # Nodes & edges only
-                ds = Dataset(
-                    name="hindmata",
-                    nodes=nodes,
-                    edges=edges,
-                    rain=np.zeros((1, 96, len(nodes)), dtype=np.float32),
-                    river=np.zeros((1, 96), dtype=np.float32),
-                    depth=np.zeros((1, 96, len(nodes)), dtype=np.float32),
-                    dt_seconds=600.0,
-                    T=96, N=len(nodes), E=len(edges), S=1,
-                    is_model_compatible=False,
-                    incompatible_reason="Simulation arrays X.npy not found.",
-                    known_spots=known_spots,
-                    pumps=pumps,
-                    notes=["Topological graph available."],
-                )
-                return ds, None
-        except Exception as e:
-            return None, f"Error loading hindmata area: {str(e)}"
-            
     else:
         return None, f"Unrecognised area format for '{name}'."
-

@@ -135,5 +135,13 @@ def test_load_sample_area_contract():
     assert ds.N == 200
     assert ds.T == 72
     assert ds.S == 60
-    assert ds.is_model_compatible is True
+    assert ds.is_model_compatible is False
 
+
+def test_load_hindmata_area():
+    ds, err = load_area("hindmata")
+    assert err is None
+    assert ds is not None
+    assert ds.N == 89
+    assert ds.E == 140
+    assert ds.is_model_compatible is True
