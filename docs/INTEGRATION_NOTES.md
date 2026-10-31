@@ -122,3 +122,8 @@ simulate(
 | 3 | 0 | kurla area: does not exist on any branch — show as "not available yet" | Not found in git ls-tree on any remote |
 | 4 | 0 | Use `git checkout origin/person-b/ml-optimizer -- <path>` for B's files (not merge) | Avoids merge conflicts with main |
 | 5 | 0 | best_meta.json does not store dt_seconds explicitly — infer from contract (900) | Consistent with training data format |
+
+
+| 6 | 1 | Merge `origin/person-b/ml-optimizer` via `git merge --no-ff` | Clean merge via ORT strategy; models/best.pt, src/ml, src/opt, tests/ml all imported intact. |
+| 7 | 1 | Smoke test B on sample dataset heavy storm | `predict()` took 270 ms cold, returned 200 nodes; `optimize()` took 3.39 s, achieved 12.9% reduction on heavy storm. |
+| 8 | 1 | Ran B's test suite with pytest | 16 passed in 14.4s (`tests/ml/test_dataset.py`, `test_metrics.py`, `test_predict.py`). |
