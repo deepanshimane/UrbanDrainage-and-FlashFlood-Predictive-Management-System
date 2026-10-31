@@ -94,3 +94,4 @@ def test_invalid_scenario_error():
     resp = client.get("/scenario/non_existent_storm")
     assert resp.status_code == 404
     assert "detail" in resp.json()
+

@@ -21,3 +21,4 @@
 2. **Done:** Interactive multi-tab dashboard (`dashboard/app.py`) with map, +1h/+2h/+3h forecasts, optimizer verification, and IoT gauge.
 3. **Done:** Automated demo launcher script (`run_demo.ps1`).
 4. **Done:** Full documentation suite (demo script, slides outline, QA cheatsheet, pre-demo checklist).
+

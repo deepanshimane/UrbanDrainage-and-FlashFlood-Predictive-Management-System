@@ -258,3 +258,4 @@ def load_area(name: str, base_dir: Optional[Path] = None) -> Tuple[Optional[Data
             
     else:
         return None, f"Unrecognised area format for '{name}'."
+

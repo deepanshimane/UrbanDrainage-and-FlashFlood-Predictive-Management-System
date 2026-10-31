@@ -28,3 +28,4 @@
 | **Optimizer search takes too long** | The dashboard utilizes pre-cached optimizer runs (`results/opt_*.npy`), ensuring results render in <35 ms. |
 | **Streamlit server becomes unresponsive** | Run `taskkill /F /IM python.exe` in terminal and relaunch with `.\run_demo.ps1`. Takes under 5 seconds. |
 | **Judge asks to test an unseen storm** | Select "Extreme cloudburst" from the sidebar and advance slider to step 26 to show resilience under 110 mm/h deluge. |
+

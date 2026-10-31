@@ -21,3 +21,4 @@
 - `/optimize` Response Latency: 32.9 ms (cached, exceeds <100ms goal)
 - Optimization Flood Cost Reduction: 32.8% on Heavy Storm ($40.5 \to 27.2\text{ m·h}$)
 - ST-GNN Test MAE: 1.98 cm (+1h), 2.56 cm (+2h), 4.07 cm (+3h)
+

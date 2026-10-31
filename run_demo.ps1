@@ -47,3 +47,4 @@ Write-Host "`nBoth services running!" -ForegroundColor Cyan
 Write-Host "  • Dashboard UI:  http://localhost:8501" -ForegroundColor White
 Write-Host "  • API Swagger:   http://localhost:8000/docs" -ForegroundColor White
 Write-Host "`nTo stop all demo services, press Ctrl+C or close the spawned windows." -ForegroundColor Magenta
+

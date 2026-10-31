@@ -62,3 +62,4 @@
 2. **Solution:** FloodSense uses a Spatio-Temporal Graph Neural Network to forecast street depths 1 to 3 hours in advance.
 3. **Action:** Our dispatch optimizer pre-emptively schedules pumps and gates, cutting total flood inundation by 32.8%.
 4. **Validation:** 8ms inference latency, 2.56 cm MAE, and tested on unseen storm events.
+

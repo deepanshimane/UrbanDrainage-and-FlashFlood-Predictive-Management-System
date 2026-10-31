@@ -136,3 +136,4 @@ def test_load_sample_area_contract():
     assert ds.T == 72
     assert ds.S == 60
     assert ds.is_model_compatible is True
+

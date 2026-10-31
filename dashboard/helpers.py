@@ -155,3 +155,4 @@ def risk_table(depth_by_node_m: np.ndarray, nodes: pd.DataFrame, top_k: int = 10
     df = pd.DataFrame(records)
     df = df.sort_values(by="depth_cm", ascending=False).reset_index(drop=True)
     return df.head(top_k)
+

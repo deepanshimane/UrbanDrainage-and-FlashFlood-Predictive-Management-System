@@ -59,3 +59,4 @@
 
 ### 20. How would municipal authorities deploy this in Mumbai?
 **Answer:** By connecting BMC's automatic weather stations (AWS) and Mithi river radar gauges into our `/predict` endpoint, the system can trigger automated SCADA pump control signals directly.
+
