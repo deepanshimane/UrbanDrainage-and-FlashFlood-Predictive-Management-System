@@ -199,4 +199,6 @@ def train_stgnn(
 
 
 if __name__ == "__main__":
-    train_stgnn()
+    import sys
+    target_dir = sys.argv[1] if len(sys.argv) > 1 else "data/sample"
+    train_stgnn(data_dir=target_dir)

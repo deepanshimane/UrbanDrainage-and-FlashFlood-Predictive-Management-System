@@ -188,4 +188,6 @@ def run_baselines(data_dir: str = "data/sample", out_csv: str = "results/baselin
 
 
 if __name__ == "__main__":
-    run_baselines()
+    import sys
+    target_dir = sys.argv[1] if len(sys.argv) > 1 else "data/sample"
+    run_baselines(data_dir=target_dir)
