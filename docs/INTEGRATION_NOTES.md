@@ -132,3 +132,5 @@ simulate(
 | 10 | 2 | Created `dashboard/data_access.py` | Data Access Layer with `Dataset` dataclass, `list_areas()`, `load_area()` handling contract format and areaA format with compatibility detection. |
 
 | 11 | 3 | Upgraded `src/api/main.py` | Added GET /areas, GET /scenarios, GET /scenario/{name}, GET /cache/status, GET /known-spots, GET /metrics. Connected POST /predict and /optimize to Person B models with fallback. In-memory optimizer cache with warm-up. Latency tracking: predict 9.2s cold (then cached by PyTorch), optimize 2.9s cold -> 0.0ms cached. |
+
+| 12 | 4 | Built full dashboard in `dashboard/app.py` | 7 interactive tabs: Map (fixed depth bands, tooltips, pumps/outfall layers), AI Multi-Horizon Forecast (+1h/+2h/+3h lead times with ground truth comparison and MAE), Risk Table & Alerts (CSV download), Optimizer Dispatch before/after verification, IoT Sensor Gauge with river limit line, Model Metrics, and Honesty/Architecture tab. Verified headless launch on :8501 (HTTP 200). |
