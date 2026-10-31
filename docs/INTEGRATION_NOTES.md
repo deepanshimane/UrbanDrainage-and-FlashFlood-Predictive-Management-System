@@ -136,3 +136,5 @@ simulate(
 | 12 | 4 | Built full dashboard in `dashboard/app.py` | 7 interactive tabs: Map (fixed depth bands, tooltips, pumps/outfall layers), AI Multi-Horizon Forecast (+1h/+2h/+3h lead times with ground truth comparison and MAE), Risk Table & Alerts (CSV download), Optimizer Dispatch before/after verification, IoT Sensor Gauge with river limit line, Model Metrics, and Honesty/Architecture tab. Verified headless launch on :8501 (HTTP 200). |
 
 | 13 | 5 | Created Person C test suite | `tests/test_api.py` (9 tests covering /health, /areas, /scenarios, /predict, /optimize, /optimize cache, /metrics, /sensor-stream, errors) and `tests/test_dashboard_helpers.py` (9 tests covering step_to_clock, horizon_steps, depth_band, haversine, nearest_node, rank_storms, build_recent, risk_table, load_area). All 18 tests PASSED in 20.94s. |
+
+| 14 | 6 | Performance & Robustness Drills | Predict latency: cold 21.8s (torch ST-GNN initialization), warm 121.6ms. Optimize latency: cold 8.56s (local search), cached 32.9ms (exceeds <100ms target). Incompatible/missing areas return clean 404 with descriptive details. |
