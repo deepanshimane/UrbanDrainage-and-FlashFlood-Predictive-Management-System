@@ -7,23 +7,30 @@ Per hackathon data management practices, **large `.npy` arrays, `.tif` elevation
 
 ---
 
-## 1. What is in Git (Committed)
-- `data/hindmata/nodes.csv` (89 nodes with elevation, drainage area, runoff coefficient, and pump zones)
-- `data/hindmata/edges.csv` (140 street/drainage edges with road capacity)
-- `data/hindmata/pumps.csv` (3 pumping stations: Hindmata, Gandhi Market, Britannia)
-- `data/hindmata/known_spots.csv` & `known_spot_validation.csv` (Hindmata, Dadar TT, Gandhi Market hit-rate validation)
-- `data/hindmata/real_storms/` (Open-Meteo extreme rain day CSVs: 2019, 2020, 2021)
-- `data/hindmata/dataset/meta.csv` (306 storm metadata records with 70/15/15 train/val/test split)
-- `data/hindmata/dataset/config.json` & `scenarios.json` (Dashboard and model configs)
+## 1. Areas Available
+### Area 1 (Primary): Hindmata - Dadar - Parel (`data/hindmata/`)
+- `nodes.csv` (89 nodes with elevation, drainage area, runoff coeff 0.85, pump zones)
+- `edges.csv` (140 street/drainage edges with road capacity)
+- `pumps.csv` (3 stations: Hindmata mini pumping station, Gandhi Market, Britannia)
+- `known_spots.csv` & `known_spot_validation.csv` (Hindmata junction floods in 77.1% of heavy storms)
+- `dataset/meta.csv` (306 storm metadata records with 70/15/15 train/val/test split)
+- `dataset/config.json` & `dataset/scenarios.json`
+
+### Area 2 (Scalability Proof): Kurla - Mithi River (`data/kurla/`)
+- `nodes.csv` (91 nodes, elevation 4.35m to 13.19m along Mithi river)
+- `edges.csv` (126 street/drainage edges)
+- `pumps.csv` (3 stations: Mithi River CST Road tidal gates, Kranti Nagar, Kurla Station West)
+- `known_spots.csv` & `known_spot_validation.csv` (Bail Bazar floods in 71.4% of heavy storms)
+- `dataset/meta.csv` (106 storm metadata records)
+- `dataset/config.json` & `dataset/scenarios.json`
 
 ---
 
-## 2. Where the Large Data Arrays Live (.npy)
-- Local Path: `data/hindmata/dataset/X.npy` (39.9 MB, shape `[306, 96, 89, 4]`)
-- Features: `0 = rain_mm`, `1 = tide_m`, `2 = depth_m` (ground truth target), `3 = pump_on`
-- Auxiliary files: `data/hindmata/dataset/gate_open.npy` `[306, 96]`, `pump_sched.npy` `[306, 96, 3]`
-- **Local Generation:** If not downloaded from Google Drive, the entire 306-storm dataset can be generated locally in ~1 second by running:
+## 2. Where Large Data Arrays Live (.npy)
+- Hindmata: `data/hindmata/dataset/X.npy` (39.9 MB, shape `[306, 96, 89, 4]`)
+- Kurla: `data/kurla/dataset/X.npy` (14.1 MB, shape `[106, 96, 91, 4]`)
+- **Local Generation:** To generate large arrays locally on any machine in seconds without downloading:
   ```bash
   python gen_dataset.py data/hindmata 300
+  python gen_dataset.py data/kurla 100
   ```
-- **Google Drive Archive Link:** (Upload `data/hindmata/dataset.zip` to Google Drive and paste link here)
