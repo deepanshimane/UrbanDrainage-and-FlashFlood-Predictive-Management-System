@@ -1,0 +1,101 @@
+[
+  {
+    "model": "Persistence",
+    "lead_time": "1h",
+    "mae_cm": 0.85,
+    "rmse_cm": 10.67,
+    "f1": 0.6555,
+    "f1_flooded_storms": 0.6837,
+    "precision": 0.649,
+    "recall": 0.6622,
+    "iou": 0.4876
+  },
+  {
+    "model": "Persistence",
+    "lead_time": "2h",
+    "mae_cm": 1.33,
+    "rmse_cm": 14.83,
+    "f1": 0.4251,
+    "f1_flooded_storms": 0.4832,
+    "precision": 0.404,
+    "recall": 0.4485,
+    "iou": 0.2699
+  },
+  {
+    "model": "Persistence",
+    "lead_time": "3h",
+    "mae_cm": 1.52,
+    "rmse_cm": 16.63,
+    "f1": 0.2768,
+    "f1_flooded_storms": 0.3728,
+    "precision": 0.2362,
+    "recall": 0.3344,
+    "iou": 0.1607
+  },
+  {
+    "model": "No-Graph MLP",
+    "lead_time": "1h",
+    "mae_cm": 2.09,
+    "rmse_cm": 12.19,
+    "f1": 0.3417,
+    "f1_flooded_storms": 0.3567,
+    "precision": 0.2071,
+    "recall": 0.9764,
+    "iou": 0.206
+  },
+  {
+    "model": "No-Graph MLP",
+    "lead_time": "2h",
+    "mae_cm": 5.65,
+    "rmse_cm": 20.69,
+    "f1": 0.1321,
+    "f1_flooded_storms": 0.1539,
+    "precision": 0.0708,
+    "recall": 0.9792,
+    "iou": 0.0707
+  },
+  {
+    "model": "No-Graph MLP",
+    "lead_time": "3h",
+    "mae_cm": 10.46,
+    "rmse_cm": 28.41,
+    "f1": 0.0568,
+    "f1_flooded_storms": 0.0899,
+    "precision": 0.0292,
+    "recall": 0.9875,
+    "iou": 0.0292
+  },
+  {
+    "model": "ST-GNN (Ours)",
+    "lead_time": "1h",
+    "mae_cm": 1.98,
+    "rmse_cm": 13.36,
+    "f1": 0.4083,
+    "f1_flooded_storms": 0.4219,
+    "precision": 0.2602,
+    "recall": 0.9482,
+    "iou": 0.2566
+  },
+  {
+    "model": "ST-GNN (Ours)",
+    "lead_time": "2h",
+    "mae_cm": 2.56,
+    "rmse_cm": 15.09,
+    "f1": 0.3144,
+    "f1_flooded_storms": 0.3306,
+    "precision": 0.189,
+    "recall": 0.935,
+    "iou": 0.1866
+  },
+  {
+    "model": "ST-GNN (Ours)",
+    "lead_time": "3h",
+    "mae_cm": 4.07,
+    "rmse_cm": 18.25,
+    "f1": 0.1576,
+    "f1_flooded_storms": 0.1822,
+    "precision": 0.0857,
+    "recall": 0.975,
+    "iou": 0.0855
+  }
+]

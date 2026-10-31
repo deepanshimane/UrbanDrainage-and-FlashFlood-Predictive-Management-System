@@ -2,9 +2,9 @@
 
 The AI updates this file after every step. Do not delete the table.
 
-**Overall progress: 60%**
+**Overall progress: 68%**
 **Last updated:** 2026-10-31
-**Right now working on:** B6
+**Right now working on:** B7
 
 | Step | What it is (simple words) | Weight | Status | Result / number |
 |---|---|---|---|---|
@@ -14,7 +14,7 @@ The AI updates this file after every step. Do not delete the table.
 | B3 | Build 2 simple baseline models to beat | 10 | DONE | Persistence F1: 0.70/0.51/0.37, No-Graph F1: 0.27/0.14/0.07 |
 | B4 | Build and train the main graph AI model (ST-GNN) | 20 | DONE | F1: 0.44/0.32/0.15, MAE: 2.3/2.7/4.1 cm (beats no-graph by 2x) |
 | B5 | Write `predict.py` so Person C can use my model | 10 | DONE | PREDICTION JSON format verified, cached, tests passed |
-| B6 | Make the evaluation report with tables and charts | 8 | TODO | |
+| B6 | Make the evaluation report with tables and charts | 8 | DONE | Test F1 0.41/0.31/0.16, MAE 2.0/2.6/4.1 cm, 4 charts & report |
 | B7 | Optimizer v1: simple pump rules | 8 | TODO | |
 | B8 | Optimizer v2: search many schedules, show before/after | 8 | TODO | |
 | B9 | Swap in Person A's REAL dataset and retrain | 6 | TODO | |
