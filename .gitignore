@@ -1,0 +1,10 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+# big data arrays are NOT committed (share via Google Drive link, see CONTRACT.md)
+data/**/*.npy
+data/**/*.npz
+# keep small CSVs (nodes.csv, edges.csv) committed
