@@ -1,0 +1,13 @@
+{
+  "T": 96,
+  "dt_seconds": 600.0,
+  "features": [
+    "rain_mm",
+    "tide_m",
+    "depth_m",
+    "pump_on"
+  ],
+  "n_nodes": 89,
+  "n_pumps": 3,
+  "flood_threshold_m": 0.1
+}
