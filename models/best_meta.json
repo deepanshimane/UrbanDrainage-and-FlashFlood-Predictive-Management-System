@@ -1,0 +1,66 @@
+{
+  "model_type": "ST-GNN",
+  "num_nodes": 200,
+  "hidden_dim": 48,
+  "history_steps": 8,
+  "horizon_steps": 12,
+  "norm_mean": [
+    5.843597412109375,
+    0.09546048194169998,
+    1.0735747814178467,
+    0.019212963059544563
+  ],
+  "norm_std": [
+    13.295668601989746,
+    0.6145708560943604,
+    1.1560167074203491,
+    0.1371573507785797
+  ],
+  "best_val_loss": 0.09441,
+  "validation_metrics": {
+    "1h": {
+      "mae_cm": 2.27,
+      "rmse_cm": 14.51,
+      "precision": 0.2854,
+      "recall": 0.9346,
+      "f1": 0.4373,
+      "iou": 0.2798
+    },
+    "2h": {
+      "mae_cm": 2.72,
+      "rmse_cm": 15.83,
+      "precision": 0.1954,
+      "recall": 0.9303,
+      "f1": 0.323,
+      "iou": 0.1926
+    },
+    "3h": {
+      "mae_cm": 4.12,
+      "rmse_cm": 18.66,
+      "precision": 0.0801,
+      "recall": 0.9049,
+      "f1": 0.1472,
+      "iou": 0.0794
+    }
+  },
+  "validation_flooded_metrics": {
+    "1h": {
+      "f1": 0.4482,
+      "precision": 0.2948,
+      "recall": 0.9346,
+      "samples_with_flood": 231
+    },
+    "2h": {
+      "f1": 0.3341,
+      "precision": 0.2036,
+      "recall": 0.9303,
+      "samples_with_flood": 222
+    },
+    "3h": {
+      "f1": 0.1627,
+      "precision": 0.0894,
+      "recall": 0.9049,
+      "samples_with_flood": 200
+    }
+  }
+}

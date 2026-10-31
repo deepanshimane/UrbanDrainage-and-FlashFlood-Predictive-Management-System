@@ -1,0 +1,4 @@
+nodes,inference_latency_ms,inference_std_ms,train_step_ms,real_time_fps
+200,7.98,1.03,314.92,125.3
+400,16.32,1.57,779.2,61.3
+800,43.66,4.9,1979.8,22.9
