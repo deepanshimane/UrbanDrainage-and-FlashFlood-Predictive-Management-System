@@ -174,28 +174,24 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Advanced Developer Settings (Collapsed by default so officials/judges see clean UI)
-    with st.expander("🛠️ Advanced Settings & Connections", expanded=False):
-        mode = st.radio("Operating Mode", ["Auto (Try API -> Direct)", "Direct Import Only"], index=0)
-        api_url = st.text_input("API URL", value=API_DEFAULT_URL)
-        show_pumps = st.checkbox("Show Pump Stations on Map", value=True)
-        show_outlets = st.checkbox("Show Tidal Outfalls", value=True)
-        show_spots = st.checkbox("Show Chronic Flood Hotspots", value=True)
-        
-    # Connection Check
+    # Automatic backend connection (Clean UI: all layers active, direct high-speed engine)
+    api_url = API_DEFAULT_URL
+    show_pumps = True
+    show_outlets = True
+    show_spots = True
+    
     api_available = False
-    if "Auto" in mode:
-        try:
-            r = requests.get(f"{api_url}/health", timeout=1.5)
-            if r.status_code == 200:
-                api_available = True
-        except Exception:
-            api_available = False
+    try:
+        r = requests.get(f"{api_url}/health", timeout=1.0)
+        if r.status_code == 200:
+            api_available = True
+    except Exception:
+        api_available = False
             
     if api_available:
-        st.success("🟢 Fast Backend Connected", icon="⚡")
+        st.caption("🟢 Fast Backend Connected")
     else:
-        st.caption("⚡ Operating in High-Speed Local Engine Mode")
+        st.caption("⚡ High-Speed Local Engine")
 
 
 # ---------------------------------------------------------------------------
