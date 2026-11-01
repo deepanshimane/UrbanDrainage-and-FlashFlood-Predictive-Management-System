@@ -233,7 +233,7 @@ is_citizen_view = "Citizen" in role_mode
 # ---------------------------------------------------------------------------
 # 🎬 JUDGE WALKTHROUGH TOUR (Feature 1: One-Click Instant 30-Second Demo)
 # ---------------------------------------------------------------------------
-st.markdown("##### 🎬 **Judge Walkthrough Tour (Click any stage for instant 30-second demonstration):**")
+st.markdown("##### ⚡ **Quick Scenario Walkthrough (Click any stage for instant demonstration):**")
 wt1, wt2, wt3, wt4 = st.columns([1, 1, 1, 0.6])
 
 if "timeline_slider_main" not in st.session_state:
@@ -255,7 +255,7 @@ with wt3:
         st.session_state.tour_banner = "⚡ **Stage 3: Smart Drawdown & Recovery (T+07:00)** — Pre-emptively scheduled holding tank pumps and tidal gate closure clear street water, cutting flood exposure hours."
 
 with wt4:
-    if st.button("🔄 Reset Tour"):
+    if st.button("🔄 Reset Walkthrough"):
         st.session_state.tour_banner = None
 
 if st.session_state.get("tour_banner"):
