@@ -35,35 +35,35 @@
   {
     "model": "No-Graph MLP",
     "lead_time": "1h",
-    "mae_cm": 0.26,
-    "rmse_cm": 1.06,
-    "f1": 0.9413,
-    "f1_flooded_storms": 0.9427,
-    "precision": 0.9354,
-    "recall": 0.9473,
-    "iou": 0.8891
+    "mae_cm": 1.93,
+    "rmse_cm": 9.43,
+    "f1": 0.0,
+    "f1_flooded_storms": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "iou": 0.0
   },
   {
     "model": "No-Graph MLP",
     "lead_time": "2h",
-    "mae_cm": 0.6,
-    "rmse_cm": 2.38,
-    "f1": 0.8522,
-    "f1_flooded_storms": 0.8614,
-    "precision": 0.8149,
-    "recall": 0.8931,
-    "iou": 0.7425
+    "mae_cm": 1.97,
+    "rmse_cm": 9.56,
+    "f1": 0.0,
+    "f1_flooded_storms": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "iou": 0.0
   },
   {
     "model": "No-Graph MLP",
     "lead_time": "3h",
-    "mae_cm": 0.98,
-    "rmse_cm": 3.66,
-    "f1": 0.7461,
-    "f1_flooded_storms": 0.7571,
-    "precision": 0.6625,
-    "recall": 0.8537,
-    "iou": 0.595
+    "mae_cm": 1.39,
+    "rmse_cm": 4.33,
+    "f1": 0.6591,
+    "f1_flooded_storms": 0.6787,
+    "precision": 0.5203,
+    "recall": 0.8987,
+    "iou": 0.4915
   },
   {
     "model": "ST-GNN (Ours)",
