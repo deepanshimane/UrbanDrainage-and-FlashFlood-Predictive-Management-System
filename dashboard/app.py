@@ -144,19 +144,21 @@ with st.sidebar:
     
     # 1. Area Selector
     available_areas = list_areas()
-    area_options = [a["name"] for a in available_areas if a["status"] != "disabled"]
+    AREA_MAP = {
+        "Hindmata - Dadar - Parel (Primary)": "hindmata",
+        "Kurla - Mithi River (Scalability)": "kurla",
+        "Sample 200-Node Benchmark": "sample",
+    }
+    enabled_names = {a["name"] for a in available_areas if a["status"] != "disabled"}
+    display_options = [lbl for lbl, name in AREA_MAP.items() if name in enabled_names]
     
-    selected_area = st.selectbox(
+    chosen_label = st.selectbox(
         "📍 Study Catchment",
-        options=area_options,
+        options=display_options,
         index=0,
-        format_func=lambda x: {
-            "hindmata": "Hindmata - Dadar - Parel (Primary)",
-            "kurla": "Kurla - Mithi River (Scalability)",
-            "sample": "Sample 200-Node Benchmark",
-        }.get(x, x),
         help="Select the urban watershed area."
     )
+    selected_area = AREA_MAP.get(chosen_label, "hindmata")
         
     # 2. Weather Scenario
     selected_scenario = st.radio(
@@ -214,10 +216,51 @@ history_hours = round(history_steps * ds.dt_seconds / 3600.0, 1)
 
 
 # ---------------------------------------------------------------------------
-# HEADER & UNIFIED TIMELINE CONTROLLER
+# HEADER & AUDIENCE PERSPECTIVE SELECTOR (Feature 3)
 # ---------------------------------------------------------------------------
-st.title("🌊 FloodSense AI: Urban Drainage & Flood Management")
-st.caption("AI-Powered Flood Depth Forecasting & Dispatch Recommendation Prototype | **Mumbai Municipal Catchment Simulation**")
+col_title, col_view = st.columns([2.7, 1.3])
+with col_title:
+    st.title("🌊 FloodSense AI: Urban Drainage & Flood Management")
+    st.caption("AI-Powered Flood Depth Forecasting & Dispatch Recommendation Prototype | **Mumbai Municipal Catchment Simulation**")
+with col_view:
+    role_mode = st.radio(
+        "👤 Audience Perspective",
+        ["👔 Municipal Officer View", "🚶 Citizen / Commuter View"],
+        index=0,
+        help="Switch between the technical engineering console and simplified commuter guidance."
+    )
+is_citizen_view = "Citizen" in role_mode
+
+# ---------------------------------------------------------------------------
+# 🎬 JUDGE WALKTHROUGH TOUR (Feature 1: One-Click Instant 30-Second Demo)
+# ---------------------------------------------------------------------------
+st.markdown("##### 🎬 **Judge Walkthrough Tour (Click any stage for instant 30-second demonstration):**")
+wt1, wt2, wt3, wt4 = st.columns([1, 1, 1, 0.6])
+
+if "timeline_slider_main" not in st.session_state:
+    st.session_state.timeline_slider_main = min(24, ds.T - 1)
+
+with wt1:
+    if st.button("🌦️ Stage 1: Storm Inception (T+01:00)", help="Pavements dry (<10cm); clouds gathering; AI detects impending deluge."):
+        st.session_state.timeline_slider_main = min(6, ds.T - 1)
+        st.session_state.tour_banner = "🌦️ **Stage 1: Storm Inception (T+01:00)** — Pavements are completely dry. While naive Persistence sees zero danger (0.0% onset recall), FloodSense ST-GNN already detects the oncoming cloudburst and warns operators to pre-drain holding tanks."
+
+with wt2:
+    if st.button("🌊 Stage 2: Peak Deluge & High Tide (T+04:00)", help="Heavy storm hits; Arabian Sea tide locks outfalls; water pools at Hindmata."):
+        st.session_state.timeline_slider_main = min(24, ds.T - 1)
+        st.session_state.tour_banner = "🌊 **Stage 2: Peak Deluge & High Tide (T+04:00)** — Rainfall peaks and Arabian Sea tide exceeds 3.51 m Chart Datum (+1.0 m MSL), choking gravity outfalls. The Hindmata saucer depression pools rapidly."
+
+with wt3:
+    if st.button("⚡ Stage 3: Smart Drawdown & Recovery (T+07:00)", help="Holding tank pumps active; tidal gates closed; water recedes."):
+        st.session_state.timeline_slider_main = min(42, ds.T - 1)
+        st.session_state.tour_banner = "⚡ **Stage 3: Smart Drawdown & Recovery (T+07:00)** — Pre-emptively scheduled holding tank pumps and tidal gate closure clear street water, cutting flood exposure hours."
+
+with wt4:
+    if st.button("🔄 Reset Tour"):
+        st.session_state.tour_banner = None
+
+if st.session_state.get("tour_banner"):
+    st.info(st.session_state["tour_banner"])
 
 # Timeline Slider: Global controller positioned above the Banner and Tabs
 col_ctrl1, col_ctrl2 = st.columns([3, 1])
@@ -226,7 +269,7 @@ with col_ctrl1:
         "⏱️ Storm Simulation Timeline (Drag slider to inspect live flood progression across hours)",
         min_value=0,
         max_value=ds.T - 1,
-        value=min(24, ds.T - 1),
+        key="timeline_slider_main",
         format="%d",
         help="Step through the 16-hour storm timeline in 10-minute intervals."
     )
@@ -250,6 +293,21 @@ worst_node_lat = float(ds.nodes.iloc[worst_node_id]["lat"])
 worst_node_lon = float(ds.nodes.iloc[worst_node_id]["lon"])
 worst_node_landmark = get_landmark_for_node(ds.name, worst_node_id, worst_node_lat, worst_node_lon)
 
+# ⏱️ Receding Countdown Clock Computation (Feature 5)
+recede_str = "Clear"
+recede_hrs_str = "0h"
+if current_max_depth_m > 0.10 and ds.depth is not None:
+    worst_future = ds.depth[storm_idx, current_step:, worst_node_id]
+    clear_indices = np.where(worst_future <= 0.10)[0]
+    if len(clear_indices) > 0:
+        steps_away = int(clear_indices[0])
+        clear_t = current_step + steps_away
+        recede_str = step_to_clock(clear_t, ds.dt_seconds)
+        recede_hrs_str = f"~{round(steps_away * ds.dt_seconds / 3600.0, 1)}h remaining"
+    else:
+        recede_str = "Beyond 16h"
+        recede_hrs_str = "Persisting" 
+
 # Overall storm peak for early warnings
 peak_depth_m = float(ds.depth[storm_idx].max()) if ds.depth is not None else 0.0
 peak_step = int(np.argmax(ds.depth[storm_idx].max(axis=1))) if ds.depth is not None else 0
@@ -257,35 +315,32 @@ peak_clock = step_to_clock(peak_step, ds.dt_seconds)
 overall_worst_node = int(np.argmax(ds.depth[storm_idx].max(axis=0))) if ds.depth is not None else 0
 overall_worst_landmark = get_landmark_for_node(ds.name, overall_worst_node, float(ds.nodes.iloc[overall_worst_node]["lat"]), float(ds.nodes.iloc[overall_worst_node]["lon"]))
 
-# Status Banner State Logic
+# Status Banner State Logic (Simplified & Direct)
 if current_max_depth_m >= 0.50:
     banner_cls = "executive-banner-danger"
     status_icon = "🚨"
-    headline = f"CRITICAL FLOOD ALERT ({clock_str}) — Inundation: {int(current_max_d_cm)} cm (Waist-Deep) at {worst_node_landmark}"
-    action_text = f"⚠️ Emergency Action: {flooded_count} of {ds.N} junctions submerged. Automated high-capacity pumps active at 100%. Tidal outfall gates throttled against Arabian Sea surge."
+    headline = f"CRITICAL FLOOD — {int(current_max_d_cm)} cm at {worst_node_landmark}"
+    action_text = f"{flooded_count} of {ds.N} junctions submerged. Avoid Hindmata; use Lalbaug flyover. Pumps running."
 elif current_max_depth_m >= 0.25:
     banner_cls = "executive-banner-warning"
     status_icon = "⚠️"
-    headline = f"MODERATE FLOOD WARNING ({clock_str}) — Inundation: {int(current_max_d_cm)} cm (Knee-Deep) at {worst_node_landmark}"
-    action_text = f"⚡ System Action: {flooded_count} junctions waterlogged. Ward pumping stations running. Traffic diversion advised on Dr. Ambedkar Road."
+    headline = f"FLOOD WARNING — {int(current_max_d_cm)} cm at {worst_node_landmark}"
+    action_text = f"Waterlogging on Dr. Ambedkar Road ({flooded_count} junctions). Small cars avoid area. Pumps active."
 elif current_max_depth_m >= 0.10:
     banner_cls = "executive-banner-warning"
     status_icon = "🟡"
-    headline = f"MINOR WATERLOGGING ({clock_str}) — Surface Water: {int(current_max_d_cm)} cm (Ankle-Deep) at {worst_node_landmark}"
-    if peak_step > current_step and peak_depth_m >= 0.25:
-        action_text = f"🔮 AI Early Warning: Monsoon deluge intensifying. Inundation predicted to peak at {peak_clock} ({int(peak_depth_m*100)} cm at {overall_worst_landmark}). Pumping stations in pre-emptive drawdown."
-    else:
-        action_text = "💧 System Action: Slow street drainage. Mini-pumps operating on automatic float switch."
+    headline = f"MINOR WATERLOGGING — {int(current_max_d_cm)} cm at {worst_node_landmark}"
+    action_text = f"Ankle-deep surface water pooling. Drive with caution. Pumps on standby."
 else:
     banner_cls = "executive-banner-safe"
     status_icon = "🟢"
     if peak_step > current_step and peak_depth_m >= 0.25:
-        headline = f"ALL CLEAR NOW ({clock_str}) — Pavements Dry ({int(current_max_d_cm)} cm) • AI Early Warning Active"
-        lead_hours = round((peak_step - current_step) * ds.dt_seconds / 3600.0, 1)
-        action_text = f"🔮 AI Early Warning: Cloudburst peak predicted in {lead_hours}h (at {peak_clock}, reaching {int(peak_depth_m*100)} cm at {overall_worst_landmark}). Sluice gates & holding tanks pre-activating."
+        lead_h = round((peak_step - current_step) * ds.dt_seconds / 3600.0, 1)
+        headline = f"ALL CLEAR NOW — Rain Peak in {lead_h}h ({peak_clock})"
+        action_text = f"Pavements dry now ({int(current_max_d_cm)} cm). Flood predicted at {peak_clock} ({int(peak_depth_m*100)} cm at {overall_worst_landmark}). Holding tanks pre-draining."
     else:
-        headline = f"ALL CLEAR ({clock_str}) — Normal Runoff Across Network (Depth: {int(current_max_d_cm)} cm)"
-        action_text = "💧 System Action: Normal gravity drainage to Arabian Sea outfalls. Pumps on ready standby."
+        headline = "ALL CLEAR — Streets Dry & Passable"
+        action_text = f"Normal gravity drainage across all {ds.N} junctions (max depth: {int(current_max_d_cm)} cm). Pumps on standby."
 
 st.markdown(f"""
 <div class="{banner_cls}">
@@ -296,7 +351,78 @@ st.markdown(f"""
 
 
 # ---------------------------------------------------------------------------
-# STREAMLINED TABS (5 Intuitive Sections)
+# PERSPECTIVE ROUTING (Feature 3: Citizen View vs Officer Console)
+# ---------------------------------------------------------------------------
+if is_citizen_view:
+    st.markdown("### 🚶 **Citizen & Commuter Safety Console**")
+    st.caption("Simplified traffic routing guidance, street passability status, and emergency citizen advisories.")
+    
+    # 1. Big Commute Advisory Cards
+    c_cit1, c_cit2 = st.columns(2)
+    with c_cit1:
+        if current_max_depth_m >= 0.25:
+            st.error(f"🚫 **DR. AMBEDKAR ROAD: TRAFFIC DIVERTED ({int(current_max_d_cm)} cm)**\n\nSevere waterlogging near Hindmata Flyover. Small cars will stall. Use **Lalbaug Flyover** or **Eastern Freeway** as alternate routes.")
+        elif current_max_depth_m >= 0.10:
+            st.warning(f"⚠️ **DR. AMBEDKAR ROAD: SLOW TRAFFIC ({int(current_max_d_cm)} cm)**\n\nAnkle-deep surface pooling near Hindmata. Two-wheelers drive with caution. Passable at reduced speed.")
+        else:
+            st.success("✅ **DR. AMBEDKAR ROAD: ALL CLEAR & DRY (<10 cm)**\n\nNormal traffic flow across Dadar-Hindmata-Parel corridor.")
+            
+    with c_cit2:
+        if current_max_depth_m > 0.10:
+            st.info(f"⏱️ **Road Clearance Countdown:** Water is expected to recede below curb level by **{recede_str}** ({recede_hrs_str}) with active municipal pumps running.")
+        else:
+            st.info("⏱️ **Road Clearance Countdown:** Pavements are completely clear. Normal gravity drainage operating.")
+
+    # 2. Neighborhood Landmark Passability Checklist
+    st.markdown("#### 📍 **Neighborhood Landmark Passability Checklist**")
+    top_spots = risk_table(d_step_m, ds.nodes, top_k=6, pumps=ds.pumps, area_name=ds.name)
+    chk_cols = st.columns(3)
+    for idx, r in top_spots.iterrows():
+        c_target = chk_cols[idx % 3]
+        with c_target:
+            d_val = float(r["depth_cm"])
+            stat_icon = "🔴" if d_val >= 50 else ("🟠" if d_val >= 25 else ("🟡" if d_val >= 10 else "🟢"))
+            border_c = "#ef4444" if d_val >= 50 else ("#f97316" if d_val >= 25 else ("#facc15" if d_val >= 10 else "#10b981"))
+            st.markdown(f"""
+            <div style='background-color: #1e293b; border-radius: 6px; padding: 10px; margin-bottom: 8px; border-left: 4px solid {border_c};'>
+                <strong>{stat_icon} {r['landmark']}</strong><br/>
+                <span style='font-size: 0.85rem; color: #94a3b8;'>Water Depth: <b style='color: white;'>{d_val:.1f} cm</b> • {r['severity']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    # 3. Bilingual Citizen Broadcast Notifications
+    st.markdown("#### 📢 **Emergency Citizen Broadcast Notifications**")
+    c_bc1, c_bc2 = st.columns(2)
+    with c_bc1:
+        st.markdown(f"""
+        <div class="citizen-card">
+            <h5 style='color: #60a5fa; margin: 0;'>🇬🇧 English Emergency Broadcast</h5>
+            <p style='font-size: 0.95rem; margin-top: 8px;'>
+                ⚠️ <strong>FloodSense Demo Alert (Simulated):</strong> Waterlogging ({int(current_max_d_cm)} cm) recorded at <strong>{worst_node_landmark}</strong> at <strong>{clock_str}</strong>. 
+                Underground holding tank pumps are active. Commuters are advised to avoid Hindmata junction; use alternate routes.
+            </p>
+            <span style='font-size: 0.75rem; color: #94a3b8;'>FloodSense Demo System (Simulated Prototype) • Ward F/South Simulation</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with c_bc2:
+        st.markdown(f"""
+        <div class="citizen-card">
+            <h5 style='color: #60a5fa; margin: 0;'>🇮🇳 हिंदी आपातकालीन चेतावनी</h5>
+            <p style='font-size: 0.95rem; margin-top: 8px;'>
+                ⚠️ <strong>फ्लडसेंस डेमो अलर्ट (अनुकरण):</strong> <strong>{clock_str}</strong> पर <strong>{worst_node_landmark}</strong> में जलभराव ({int(current_max_d_cm)} सेमी) दर्ज किया गया है। 
+                पंपिंग स्टेशन चालू कर दिए गए हैं। नागरिकों से अनुरोध है कि हिंदमाता जंक्शन से बचें और वैकल्पिक सुरक्षित मार्गों का प्रयोग करें।
+            </p>
+            <span style='font-size: 0.75rem; color: #94a3b8;'>फ्लडसेंस डेमो प्रणाली (प्रायोगिक प्रोटोटाइप) • प्रभाग: F/South अनुकरण</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.caption("🌊 FloodSense AI System • Citizen View Mode • Built for Mumbai Civic Awareness.")
+    st.stop()
+
+# ---------------------------------------------------------------------------
+# STREAMLINED TABS (5 Intuitive Sections - Municipal Officer Console)
 # ---------------------------------------------------------------------------
 tab_live, tab_optimizer, tab_alerts, tab_metrics, tab_about = st.tabs([
     "🗺️ Live Situation & AI Prediction",
@@ -315,27 +441,28 @@ with tab_live:
     river_step = float(ds.river[storm_idx, current_step])
     max_d_cm = current_max_d_cm
 
-    # Key Human-Friendly Metrics (Responsive to current_step)
+    # Key Human-Friendly Metrics (Responsive to current_step) with Feature 5 Receding Clock
     tide_cd = river_step + 2.51
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Submerged Street Junctions", f"{flooded_count} of {ds.N}", delta=f"{round(flooded_count/ds.N*100, 1)}% of area", delta_color="inverse")
-    m2.metric("Worst Inundation Depth", f"{max_d_cm} cm", delta=worst_node_landmark, delta_color="off")
-    m3.metric("Rainfall Rate", f"{round(rain_step, 1)} mm/h", delta="Monsoon Intensity" if rain_step > 50 else "Moderate Rain", delta_color="off")
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Submerged Junctions", f"{flooded_count} of {ds.N}", delta=f"{round(flooded_count/ds.N*100, 1)}% of area", delta_color="inverse", help="Count of street intersections where water depth exceeds the 10 cm curb threshold.")
+    m2.metric("Worst Inundation Depth", f"{max_d_cm} cm", delta=worst_node_landmark, delta_color="off", help="Deepest waterlogged point across the watershed at the current simulation minute.")
+    m3.metric("Rainfall Rate", f"{round(rain_step, 1)} mm/h", delta="Monsoon Intensity" if rain_step > 50 else "Moderate Rain", delta_color="off", help="Average precipitation intensity falling on the catchment.")
     m4.metric(
         "Arabian Sea Tide Level",
         f"{round(tide_cd, 2)} m CD",
         delta=f"{round(river_step, 2)} m MSL (Outfalls Submerged)" if river_step > 1.0 else f"{round(river_step, 2)} m MSL (Gravity Flow OK)",
         delta_color="inverse" if river_step > 1.0 else "normal",
-        help="Reported in Chart Datum (CD), standard Mumbai Port Trust datum. Mean Sea Level (MSL) is +2.51 m CD. Sluice gates choke when tide exceeds 3.51 m CD (+1.0 m MSL)."
+        help="Reported in Chart Datum (CD), standard Mumbai Port Trust datum. Mean Sea Level (MSL) is +2.51 m CD. Flap sluice gates choke when tide exceeds 3.51 m CD (+1.0 m MSL)."
+    )
+    m5.metric(
+        "Estimated Road Clearance",
+        recede_str,
+        delta=recede_hrs_str if current_max_depth_m > 0.10 else "Pavements Dry",
+        delta_color="normal" if current_max_depth_m <= 0.10 else "inverse",
+        help="Estimated time when the worst inundated junction will drop back below the 10 cm curb level based on active pump drawdown."
     )
 
-    if max_d_cm >= 100.0:
-        st.warning(
-            "⚠️ **Evaluator Note on Extreme Inundation (Depth > 100 cm):** "
-            "Depths reaching ~190 cm represent a synthetic stress-test worst case (simultaneous 250 mm extreme cloudburst + spring high tide lockout), "
-            "designed to evaluate hydraulic capacity limits, not a typical seasonal forecast. "
-            "In normal seasonal waterlogging, Hindmata inundation ranges between 35 cm and 90 cm."
-        )
+
 
     # Legend with Human Explanations
     st.markdown("""
@@ -347,6 +474,9 @@ with tab_live:
         <span class="legend-item"><span class="legend-color" style="background-color: #9f1239;"></span> <strong>&gt;100 cm:</strong> Extreme Deluge</span>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("##### 🗺️ **Catchment Drainage Network & Landmark Map**")
+    chosen_style = "carto-positron"
 
     # Prepare node data for Pydeck Map
     plot_nodes = ds.nodes.copy()
@@ -375,19 +505,7 @@ with tab_live:
     plot_nodes["nid_display"] = plot_nodes[nid_col] if nid_col else np.arange(len(plot_nodes))
     plot_nodes["pump_display"] = plot_nodes["has_pump"].apply(lambda v: "⚡ Pumping Station Active" if v == 1 else "No Pump") if "has_pump" in plot_nodes.columns else "No Pump"
 
-    # Map Style & Street Context Controls
-    c_map_opt1, c_map_opt2 = st.columns([2, 1])
-    with c_map_opt1:
-        st.markdown("##### 🗺️ **Catchment Drainage Network & Landmark Map**")
-    with c_map_opt2:
-        map_theme = st.radio(
-            "Basemap View",
-            ["Carto Positron (Street Names & Landmarks)", "Carto Darkmatter (Night Theme)"],
-            horizontal=True,
-            index=0,
-            help="Switch between street-level daytime view and high-contrast dark theme."
-        )
-    chosen_style = "carto-positron" if "Positron" in map_theme else "carto-darkmatter"
+
 
     layers = []
 
@@ -411,7 +529,7 @@ with tab_live:
                 pd.DataFrame(pipe_rows),
                 get_source_position=["src_lon", "src_lat"],
                 get_target_position=["tgt_lon", "tgt_lat"],
-                get_color=[37, 99, 235, 140] if "Positron" in map_theme else [56, 189, 248, 140],
+                get_color=[37, 99, 235, 140],
                 get_width=2.5,
                 pickable=False,
             )
@@ -458,12 +576,12 @@ with tab_live:
             get_position=["lon", "lat"],
             get_text="name",
             get_size=12,
-            get_color=[15, 23, 42, 255] if "Positron" in map_theme else [248, 250, 252, 255],
+            get_color=[15, 23, 42, 255],
             get_angle=0,
             get_text_anchor="'middle'",
             get_alignment_baseline="'bottom'",
             background=True,
-            get_background_color=[255, 255, 255, 220] if "Positron" in map_theme else [15, 23, 42, 220],
+            get_background_color=[255, 255, 255, 220],
             background_padding=[4, 2, 4, 2],
             pickable=False,
         ))
@@ -550,9 +668,9 @@ with tab_optimizer:
             red_vs_r = opt_data.get('reduction_vs_reactive_pct', 0.6)
             red_vs_p = opt_data.get('reduction_vs_passive_pct', opt_data['reduction_pct'])
 
-            c1.metric("1. Passive Drainage", f"{round(cost_p, 1)} m·h", delta="Pumps OFF, Gates OPEN", delta_color="inverse")
-            c2.metric("2. Current Practice", f"{round(cost_r, 1)} m·h", delta="Reactive Rules", delta_color="off")
-            c3.metric("3. FloodSense AI", f"{round(cost_opt, 1)} m·h", delta=f"-{red_vs_r}% vs Current Practice", delta_color="normal")
+            c1.metric("1. Passive Drainage", f"{round(cost_p, 1)} m·h", delta="Pumps OFF, Gates OPEN", delta_color="inverse", help="Meter-Hours (m·h): cumulative depth in meters × flooded duration in hours. Baseline with pumps OFF and gates OPEN.")
+            c2.metric("2. Current Practice", f"{round(cost_r, 1)} m·h", delta="Reactive Rules", delta_color="off", help="Standard municipal practice: gates close on high tide, pumps switch on reactively after water ponds.")
+            c3.metric("3. FloodSense AI", f"{round(cost_opt, 1)} m·h", delta=f"-{red_vs_r}% vs Current Practice", delta_color="normal", help="Proactive dispatch schedule pre-draining holding tanks before storm peaks.")
             
             st.success(f"🎉 **Proactive schedule achieves {round(cost_opt, 1)} m·h** (-{red_vs_r}% vs current reactive rules, -{red_vs_p}% vs passive drainage). On unseen test storms, mean flood exposure reduction is **9.4% over current practice** and **10.9% over passive drainage**.")
             
@@ -651,6 +769,34 @@ with tab_metrics:
         st.markdown("#### 🎯 ST-GNN Model vs. Baselines (Empirical Test Set)")
         st.caption("Evaluated on 46 unseen test storms in data/hindmata using src/ml/evaluate.py (flood threshold = 10 cm).")
         
+        # 🏆 Feature 8: Clean 3-Card Executive Takeaway Box
+        st.markdown("##### 🏆 **Executive AI Findings at a Glance:**")
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            st.markdown("""
+            <div style='background-color: #0f172a; border-radius: 8px; padding: 12px; border: 2px solid #38bdf8;'>
+                <p style='color: #38bdf8; font-weight: 700; margin: 0; font-size: 0.8rem;'>🎯 1. PREDICTING SUDDEN FLOODS</p>
+                <p style='font-size: 1.45rem; font-weight: 800; margin: 4px 0; color: #ffffff;'>70.5% vs 0.0%</p>
+                <p style='color: #94a3b8; font-size: 0.78rem; margin: 0;'>Naive Persistence catches <strong>0.0%</strong> of flood onsets. ST-GNN anticipates over <strong>7 out of 10</strong> upcoming floods.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with sc2:
+            st.markdown("""
+            <div style='background-color: #0f172a; border-radius: 8px; padding: 12px; border: 2px solid #10b981;'>
+                <p style='color: #10b981; font-weight: 700; margin: 0; font-size: 0.8rem;'>⚡ 2. INUNDATION REDUCTION</p>
+                <p style='font-size: 1.45rem; font-weight: 800; margin: 4px 0; color: #ffffff;'>-9.4% Exposure</p>
+                <p style='color: #94a3b8; font-size: 0.78rem; margin: 0;'>Mean reduction in flood volume-hours over current reactive municipal practice (-10.9% vs passive drainage).</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with sc3:
+            st.markdown("""
+            <div style='background-color: #0f172a; border-radius: 8px; padding: 12px; border: 2px solid #f59e0b;'>
+                <p style='color: #f59e0b; font-weight: 700; margin: 0; font-size: 0.8rem;'>🛡️ 3. CITIZEN SAFETY RECALL</p>
+                <p style='font-size: 1.45rem; font-weight: 800; margin: 4px 0; color: #ffffff;'>91.5% Recall</p>
+                <p style='color: #94a3b8; font-size: 0.78rem; margin: 0;'>Catches 9 out of 10 floods ahead of time; accepts more false alarms (55.7% precision) to avoid missing floods.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
         metrics_summary = pd.DataFrame([
             {"Model": "Persistence (No AI)", "Lead Time": "+1 Hour", "MAE (cm)": 0.46, "Precision": "89.0%", "Recall": "86.4%", "Onset Recall": "0.0%", "F1 Score": 0.88},
             {"Model": "Persistence (No AI)", "Lead Time": "+2 Hours", "MAE (cm)": 0.88, "Precision": "78.7%", "Recall": "75.0%", "Onset Recall": "0.0%", "F1 Score": 0.77},
@@ -664,7 +810,7 @@ with tab_metrics:
         ])
         st.dataframe(metrics_summary, hide_index=True, use_container_width=True)
         
-        st.markdown("""
+        st.markdown(r"""
         **Honest Precision / Recall Tradeoff & The True Value of Forecasting:**
         - **Why we do NOT claim ST-GNN beats baselines on MAE or F1:** Persistence trivially assumes current depth continues ($d_{t+k} = d_t$), achieving low MAE and high F1 during dry spells and gradual ponding.
         - **The Definitive Test — Flood Onset Detection Recall:** Among junctions that are **dry now ($\le 10$ cm) but flood in the next 1–3 hours**, Persistence scores **0.0%** across all lead times. It is completely blind to oncoming floods. In contrast, predictive models anticipate over **70% to 82%** of sudden flood inceptions.
