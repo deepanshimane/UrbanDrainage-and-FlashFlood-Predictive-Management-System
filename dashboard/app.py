@@ -41,7 +41,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="FloodSense | Mumbai Urban Drainage AI",
-    page_icon="🌊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -220,7 +219,7 @@ history_hours = round(history_steps * ds.dt_seconds / 3600.0, 1)
 # ---------------------------------------------------------------------------
 col_title, col_view = st.columns([2.7, 1.3])
 with col_title:
-    st.title("🌊 FloodSense AI: Urban Drainage & Flood Management")
+    st.title("FloodSense AI: Urban Drainage & Flood Management")
     st.caption("AI-Powered Flood Depth Forecasting & Dispatch Recommendation Prototype | **Mumbai Municipal Catchment Simulation**")
 with col_view:
     role_mode = st.radio(
@@ -246,9 +245,9 @@ with wt1:
         st.session_state.tour_banner = "🌦️ **Stage 1: Storm Inception (T+01:00)** — Pavements are completely dry. While naive Persistence sees zero danger (0.0% onset recall), FloodSense ST-GNN already detects the oncoming cloudburst and warns operators to pre-drain holding tanks."
 
 with wt2:
-    if st.button("🌊 Stage 2: Peak Deluge & High Tide (T+04:00)", help="Heavy storm hits; Arabian Sea tide locks outfalls; water pools at Hindmata."):
+    if st.button("Stage 2: Peak Deluge & High Tide (T+04:00)", help="Heavy storm hits; Arabian Sea tide locks outfalls; water pools at Hindmata."):
         st.session_state.timeline_slider_main = min(24, ds.T - 1)
-        st.session_state.tour_banner = "🌊 **Stage 2: Peak Deluge & High Tide (T+04:00)** — Rainfall peaks and Arabian Sea tide exceeds 3.51 m Chart Datum (+1.0 m MSL), choking gravity outfalls. The Hindmata saucer depression pools rapidly."
+        st.session_state.tour_banner = "**Stage 2: Peak Deluge & High Tide (T+04:00)** — Rainfall peaks and Arabian Sea tide exceeds 3.51 m Chart Datum (+1.0 m MSL), choking gravity outfalls. The Hindmata saucer depression pools rapidly."
 
 with wt3:
     if st.button("⚡ Stage 3: Smart Drawdown & Recovery (T+07:00)", help="Holding tank pumps active; tidal gates closed; water recedes."):
@@ -418,7 +417,7 @@ if is_citizen_view:
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.caption("🌊 FloodSense AI System • Citizen View Mode • Built for Mumbai Civic Awareness.")
+    st.caption("FloodSense AI System • Citizen View Mode • Built for Mumbai Civic Awareness.")
     st.stop()
 
 # ---------------------------------------------------------------------------
@@ -681,7 +680,7 @@ with tab_optimizer:
             - **FloodSense AI (Proactive Optimization):** Recommends pump drawdown *before* peak rainfall arrives and coordinates tidal gate closure based on forecast horizons, preventing holding tanks from backing up.
             """)
             
-        st.markdown("#### 🌊 The Mumbai 'Tide Story' Impact")
+        st.markdown("#### The Mumbai 'Tide Story' Impact")
         st.info("""
         **Why Hindmata Floods (Tidal Interaction):**
         - **At Low Tide (<3.51 m Chart Datum / <1.0 m MSL):** Mumbai's 25 mm/h drains discharge gravity flow into the Arabian Sea. The streets remain safe.
@@ -868,4 +867,4 @@ with tab_about:
     """)
 
 st.markdown("---")
-st.caption("🌊 FloodSense AI System • Research & Academic Demo Prototype • All Data Simulated for PS11.")
+st.caption("FloodSense AI System • Research & Academic Demo Prototype • All Data Simulated for PS11.")
