@@ -81,16 +81,32 @@ def evaluate_test_set(data_dir: str = "data/sample", model_path: str = "models/b
     stgnn_lead = evaluate_lead_times(stgnn_pred, stgnn_true)
     stgnn_flood = evaluate_flooded_only(stgnn_pred, stgnn_true)
 
+    # Current water depth at forecast origin (d_t at t=0 of horizon) from persistence input
+    d_now = p_pred[:, 0, :]
+
+    def calc_onset_recall(y_pred_arr, y_true_arr, step_idx):
+        # Flood Onset: junction is currently dry (<= 10cm) but floods in future (> 10cm)
+        d_future = y_true_arr[:, step_idx, :]
+        p_future = y_pred_arr[:, step_idx, :]
+        onset_mask = (d_now <= FLOOD_THRESH) & (d_future > FLOOD_THRESH)
+        n_onset = int(onset_mask.sum())
+        if n_onset == 0:
+            return 0.0
+        tp_onset = int(((p_future > FLOOD_THRESH) & onset_mask).sum())
+        return round(float(tp_onset / n_onset), 4)
+
     # Build final comparison table
     rows = []
     models_data = [
-        ("Persistence", p_lead, p_flood),
-        ("No-Graph MLP", mlp_lead, mlp_flood),
-        ("ST-GNN (Ours)", stgnn_lead, stgnn_flood),
+        ("Persistence", p_lead, p_flood, p_pred),
+        ("No-Graph MLP", mlp_lead, mlp_flood, mlp_pred),
+        ("ST-GNN (Ours)", stgnn_lead, stgnn_flood, stgnn_pred),
     ]
-    for m_name, l_dict, f_dict in models_data:
+    for m_name, l_dict, f_dict, pred_arr in models_data:
         for horizon in ["1h", "2h", "3h"]:
             m = l_dict[horizon]
+            s_idx = LEAD_STEPS[horizon]
+            onset_rec = calc_onset_recall(pred_arr, mlp_true, s_idx)
             rows.append({
                 "model": m_name,
                 "lead_time": horizon,
@@ -100,6 +116,7 @@ def evaluate_test_set(data_dir: str = "data/sample", model_path: str = "models/b
                 "f1_flooded_storms": f_dict[horizon].get("f1", 0.0),
                 "precision": m["precision"],
                 "recall": m["recall"],
+                "onset_recall": onset_rec,
                 "iou": m["iou"],
             })
 

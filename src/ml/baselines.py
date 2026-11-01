@@ -84,12 +84,12 @@ class NodeWiseMLP(nn.Module):
         return out
 
 
-def train_no_graph_baseline(loaders, epochs: int = 15, lr: float = 1e-3, device: str = "cpu"):
-    """Train the node-wise MLP baseline."""
+def train_no_graph_baseline(loaders, epochs: int = 20, lr: float = 1e-3, device: str = "cpu", flood_weight: float = 12.0):
+    """Train the node-wise MLP baseline with matching 12x flood penalty."""
+    torch.manual_seed(42)
     model = NodeWiseMLP().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    # Weighted loss: penalty is 10x higher when actual depth > 0.10m
     for epoch in range(epochs):
         model.train()
         train_loss = 0.0
@@ -99,8 +99,7 @@ def train_no_graph_baseline(loaders, epochs: int = 15, lr: float = 1e-3, device:
             optimizer.zero_grad()
             pred = model(x_b)
 
-            # Weighted MSE to avoid predicting all zeros
-            weight = torch.where(y_b > FLOOD_THRESH, 10.0, 1.0)
+            weight = torch.where(y_b > FLOOD_THRESH, flood_weight, 1.0)
             loss = torch.mean(weight * (pred - y_b) ** 2)
 
             loss.backward()

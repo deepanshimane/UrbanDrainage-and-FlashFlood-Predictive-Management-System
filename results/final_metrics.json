@@ -8,6 +8,7 @@
     "f1_flooded_storms": 0.881,
     "precision": 0.8895,
     "recall": 0.8641,
+    "onset_recall": 0.0,
     "iou": 0.7803
   },
   {
@@ -19,6 +20,7 @@
     "f1_flooded_storms": 0.7773,
     "precision": 0.7872,
     "recall": 0.7495,
+    "onset_recall": 0.0,
     "iou": 0.6232
   },
   {
@@ -30,40 +32,44 @@
     "f1_flooded_storms": 0.6893,
     "precision": 0.6946,
     "recall": 0.6564,
+    "onset_recall": 0.0,
     "iou": 0.5094
   },
   {
     "model": "No-Graph MLP",
     "lead_time": "1h",
-    "mae_cm": 1.93,
-    "rmse_cm": 9.43,
-    "f1": 0.0,
-    "f1_flooded_storms": 0.0,
-    "precision": 0.0,
-    "recall": 0.0,
-    "iou": 0.0
+    "mae_cm": 0.3,
+    "rmse_cm": 1.18,
+    "f1": 0.9276,
+    "f1_flooded_storms": 0.9298,
+    "precision": 0.9,
+    "recall": 0.9569,
+    "onset_recall": 0.8209,
+    "iou": 0.865
   },
   {
     "model": "No-Graph MLP",
     "lead_time": "2h",
-    "mae_cm": 1.97,
-    "rmse_cm": 9.56,
-    "f1": 0.0,
-    "f1_flooded_storms": 0.0,
-    "precision": 0.0,
-    "recall": 0.0,
-    "iou": 0.0
+    "mae_cm": 0.77,
+    "rmse_cm": 2.72,
+    "f1": 0.797,
+    "f1_flooded_storms": 0.8061,
+    "precision": 0.7042,
+    "recall": 0.9179,
+    "onset_recall": 0.785,
+    "iou": 0.6625
   },
   {
     "model": "No-Graph MLP",
     "lead_time": "3h",
-    "mae_cm": 1.39,
-    "rmse_cm": 4.33,
-    "f1": 0.6591,
-    "f1_flooded_storms": 0.6787,
-    "precision": 0.5203,
-    "recall": 0.8987,
-    "iou": 0.4915
+    "mae_cm": 1.31,
+    "rmse_cm": 4.15,
+    "f1": 0.6864,
+    "f1_flooded_storms": 0.7023,
+    "precision": 0.5644,
+    "recall": 0.8757,
+    "onset_recall": 0.7134,
+    "iou": 0.5226
   },
   {
     "model": "ST-GNN (Ours)",
@@ -74,6 +80,7 @@
     "f1_flooded_storms": 0.6934,
     "precision": 0.5573,
     "recall": 0.9146,
+    "onset_recall": 0.7052,
     "iou": 0.5297
   },
   {
@@ -85,6 +92,7 @@
     "f1_flooded_storms": 0.634,
     "precision": 0.4824,
     "recall": 0.9026,
+    "onset_recall": 0.7401,
     "iou": 0.4586
   },
   {
@@ -96,6 +104,7 @@
     "f1_flooded_storms": 0.5612,
     "precision": 0.4003,
     "recall": 0.8783,
+    "onset_recall": 0.7211,
     "iou": 0.3792
   }
 ]

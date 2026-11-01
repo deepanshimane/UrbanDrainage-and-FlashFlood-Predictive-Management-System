@@ -227,27 +227,30 @@ def optimize(
     T, N = rain.shape
     E = len(edges)
 
-    # Baseline: No control (all pumps off, all gates open)
+    # Baseline 1: Passive Drainage (pumps off, gates open)
     no_pump = np.zeros((T, N), dtype=np.float32)
     all_open = np.ones((T, E), dtype=np.float32)
     sim_before = simulate(nodes, edges, rain, river, no_pump, all_open)
     cost_before = float(sim_before["flood_cost"])
 
-    # Run optimizer method
+    # Baseline 2: Current Municipal Practice (Reactive Rules: float-switch pumps + tidal gate throttling)
+    rules_p, rules_g = optimize_rules(nodes, edges, rain, river)
+    sim_reactive = simulate(nodes, edges, rain, river, rules_p, rules_g)
+    cost_reactive = float(sim_reactive["flood_cost"])
+
+    # Run optimizer method (FloodSense AI Proactive Search)
     if method == "rules":
-        opt_pump, opt_gate = optimize_rules(nodes, edges, rain, river)
-        sim_after = simulate(nodes, edges, rain, river, opt_pump, opt_gate)
-        cost_after = float(sim_after["flood_cost"])
+        opt_pump, opt_gate = rules_p, rules_g
+        cost_after = cost_reactive
     else:  # 'search'
         opt_pump, opt_gate, cost_after = optimize_search(
             nodes, edges, rain, river, n_trials=300, seed=seed
         )
 
-    # Reduction %
-    if cost_before > 0:
-        red_pct = max(0.0, float((cost_before - cost_after) / cost_before * 100.0))
-    else:
-        red_pct = 0.0
+    # Reduction % vs Passive Baseline
+    red_pct = max(0.0, float((cost_before - cost_after) / cost_before * 100.0)) if cost_before > 0 else 0.0
+    # Reduction % vs Reactive Current Practice
+    red_vs_reactive = max(0.0, float((cost_reactive - cost_after) / cost_reactive * 100.0)) if cost_reactive > 0 else 0.0
 
     # Save arrays
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -262,6 +265,11 @@ def optimize(
         "scenario_cost_before": round(cost_before, 2),
         "scenario_cost_after": round(cost_after, 2),
         "reduction_pct": round(red_pct, 1),
+        "cost_passive": round(cost_before, 2),
+        "cost_reactive": round(cost_reactive, 2),
+        "cost_proactive": round(cost_after, 2),
+        "reduction_vs_passive_pct": round(red_pct, 1),
+        "reduction_vs_reactive_pct": round(red_vs_reactive, 1),
         "method": method,
         "pump_schedule": pump_sched,
         "gate_schedule": gate_sched,

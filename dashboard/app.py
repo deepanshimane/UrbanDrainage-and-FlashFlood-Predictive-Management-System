@@ -217,7 +217,7 @@ history_hours = round(history_steps * ds.dt_seconds / 3600.0, 1)
 # HEADER & UNIFIED TIMELINE CONTROLLER
 # ---------------------------------------------------------------------------
 st.title("🌊 FloodSense AI: Urban Drainage & Flood Management")
-st.caption("AI-Powered Real-Time Flood Depth Forecasting & Automated Sluice/Pump Dispatch | **Mumbai City Municipal Dashboard**")
+st.caption("AI-Powered Flood Depth Forecasting & Dispatch Recommendation Prototype | **Mumbai Municipal Catchment Simulation**")
 
 # Timeline Slider: Global controller positioned above the Banner and Tabs
 col_ctrl1, col_ctrl2 = st.columns([3, 1])
@@ -503,8 +503,8 @@ with tab_live:
         <div style='background-color: #1e293b; border-radius: 8px; padding: 14px; border: 1px solid #3b82f6;'>
             <h4 style='color: #60a5fa; margin: 0;'>⏱️ +1 Hour Forecast</h4>
             <p style='font-size: 1.3rem; font-weight: 700; margin: 6px 0;'>MAE: 1.18 cm</p>
-            <p style='color: #94a3b8; font-size: 0.85rem; margin: 0;'>Recall: <strong>91.5%</strong> | Precision: <strong>55.7%</strong> | F1: <strong>0.69</strong></p>
-            <p style='color: #34d399; font-size: 0.85rem; margin-top: 4px;'>✅ High flood detection recall (+1h warning)</p>
+            <p style='color: #94a3b8; font-size: 0.85rem; margin: 0;'>Recall: <strong>91.5%</strong> | Onset Recall: <strong style='color: #38bdf8;'>70.5%</strong> | Precision: <strong>55.7%</strong></p>
+            <p style='color: #34d399; font-size: 0.85rem; margin-top: 4px;'>⚡ Persistence Onset Recall: 0.0% (blind to sudden floods)</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -513,8 +513,8 @@ with tab_live:
         <div style='background-color: #1e293b; border-radius: 8px; padding: 14px; border: 1px solid #3b82f6;'>
             <h4 style='color: #60a5fa; margin: 0;'>⏱️ +2 Hours Forecast</h4>
             <p style='font-size: 1.3rem; font-weight: 700; margin: 6px 0;'>MAE: 1.74 cm</p>
-            <p style='color: #94a3b8; font-size: 0.85rem; margin: 0;'>Recall: <strong>90.3%</strong> | Precision: <strong>48.2%</strong> | F1: <strong>0.63</strong></p>
-            <p style='color: #34d399; font-size: 0.85rem; margin-top: 4px;'>⚡ Enables 90-minute pre-emptive pump dispatch</p>
+            <p style='color: #94a3b8; font-size: 0.85rem; margin: 0;'>Recall: <strong>90.3%</strong> | Onset Recall: <strong style='color: #38bdf8;'>74.0%</strong> | Precision: <strong>48.2%</strong></p>
+            <p style='color: #34d399; font-size: 0.85rem; margin-top: 4px;'>⚡ Enables 90-minute pre-emptive pump dispatch recommendation</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -523,8 +523,8 @@ with tab_live:
         <div style='background-color: #1e293b; border-radius: 8px; padding: 14px; border: 1px solid #3b82f6;'>
             <h4 style='color: #60a5fa; margin: 0;'>⏱️ +3 Hours Forecast</h4>
             <p style='font-size: 1.3rem; font-weight: 700; margin: 6px 0;'>MAE: 2.55 cm</p>
-            <p style='color: #94a3b8; font-size: 0.85rem; margin: 0;'>Recall: <strong>87.8%</strong> | Precision: <strong>40.0%</strong> | F1: <strong>0.55</strong></p>
-            <p style='color: #34d399; font-size: 0.85rem; margin-top: 4px;'>🚪 Permits sluice gate closure before high tide peak</p>
+            <p style='color: #94a3b8; font-size: 0.85rem; margin: 0;'>Recall: <strong>87.8%</strong> | Onset Recall: <strong style='color: #38bdf8;'>72.1%</strong> | Precision: <strong>40.0%</strong></p>
+            <p style='color: #34d399; font-size: 0.85rem; margin-top: 4px;'>🚪 Permits sluice gate closure recommendation before high tide peak</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -541,19 +541,26 @@ with tab_optimizer:
     col_opt_act, col_opt_res = st.columns([1, 1])
     
     with col_opt_act:
-        st.markdown("#### 🎯 Before vs. After Optimization")
+        st.markdown("#### 🎯 Dispatch Optimization: Dual Baselines Comparison")
         if opt_data:
-            c1, c2 = st.columns(2)
-            c1.metric("Before AI (No Action)", f"{round(opt_data['scenario_cost_before'], 1)} m·h", delta="Severe Inundation", delta_color="inverse")
-            c2.metric("With FloodSense AI", f"{round(opt_data['scenario_cost_after'], 1)} m·h", delta=f"-{opt_data['reduction_pct']}% Flood Volume", delta_color="normal")
+            c1, c2, c3 = st.columns(3)
+            cost_p = opt_data.get('cost_passive', opt_data['scenario_cost_before'])
+            cost_r = opt_data.get('cost_reactive', opt_data['scenario_cost_before'])
+            cost_opt = opt_data.get('cost_proactive', opt_data['scenario_cost_after'])
+            red_vs_r = opt_data.get('reduction_vs_reactive_pct', 0.6)
+            red_vs_p = opt_data.get('reduction_vs_passive_pct', opt_data['reduction_pct'])
+
+            c1.metric("1. Passive Drainage", f"{round(cost_p, 1)} m·h", delta="Pumps OFF, Gates OPEN", delta_color="inverse")
+            c2.metric("2. Current Practice", f"{round(cost_r, 1)} m·h", delta="Reactive Rules", delta_color="off")
+            c3.metric("3. FloodSense AI", f"{round(cost_opt, 1)} m·h", delta=f"-{red_vs_r}% vs Current Practice", delta_color="normal")
             
-            st.success(f"🎉 **{opt_data['reduction_pct']}% of flood exposure prevented!** By starting holding tank pumps before the deluge peak and sealing tidal outfalls against the Arabian Sea surge, flood duration is cut substantially.")
+            st.success(f"🎉 **Proactive schedule achieves {round(cost_opt, 1)} m·h** (-{red_vs_r}% vs current reactive rules, -{red_vs_p}% vs passive drainage). On unseen test storms, mean flood exposure reduction is **9.4% over current practice** and **10.9% over passive drainage**.")
             
             st.info("""
-            **💡 What 'Before AI (No Action)' Means (Judges' FAQ):**
-            - **Holding Tank & Dewatering Pumps:** Completely **OFF** (`no_pump = 0`), relying exclusively on passive gravity drainage.
-            - **Tidal Sluice & Flap Gates:** Left **100% OPEN** (`all_open = 1`), allowing high tide seawater to surge backward into city drains unimpeded.
-            - **With FloodSense AI:** Proactively schedules pump drawdown *before* peak rainfall fills holding tanks and closes tidal sluice gates during high tide surge, achieving the **32.8% reduction** in waterlogged volume-hours (m·h).
+            **💡 Transparent Baseline Definitions (Evaluator FAQ):**
+            - **Baseline 1 (Passive Drainage):** Pumps completely OFF and tidal sluice gates left wide OPEN (pure gravity drainage; seawater surges backward during high tide).
+            - **Baseline 2 (Current Municipal Practice):** Tidal gates close automatically when sea level > 1.0 m MSL, and pumps activate *reactively* once water accumulates (> 30% storage or rain > 10 mm/h).
+            - **FloodSense AI (Proactive Optimization):** Recommends pump drawdown *before* peak rainfall arrives and coordinates tidal gate closure based on forecast horizons, preventing holding tanks from backing up.
             """)
             
         st.markdown("#### 🌊 The Mumbai 'Tide Story' Impact")
@@ -592,7 +599,7 @@ with tab_alerts:
             <h5 style='color: #60a5fa; margin: 0;'>🇬🇧 English Emergency Broadcast</h5>
             <p style='font-size: 0.95rem; margin-top: 8px;'>
                 ⚠️ <strong>FloodSense Demo Alert (Simulated):</strong> Waterlogging ({int(current_max_d_cm)} cm) recorded at <strong>{worst_node_landmark}</strong> at <strong>{clock_str}</strong>. 
-                Underground holding tank pumps are active. Commuters are advised to avoid Dr. Ambedkar Road and take flyover routes.
+                Underground holding tank pumps are active. Commuters are advised to avoid Hindmata junction; use alternate routes.
             </p>
             <span style='font-size: 0.75rem; color: #94a3b8;'>FloodSense Demo System (Simulated Prototype) • Ward F/South Simulation</span>
         </div>
@@ -604,7 +611,7 @@ with tab_alerts:
             <h5 style='color: #60a5fa; margin: 0;'>🇮🇳 हिंदी आपातकालीन चेतावनी</h5>
             <p style='font-size: 0.95rem; margin-top: 8px;'>
                 ⚠️ <strong>फ्लडसेंस डेमो अलर्ट (अनुकरण):</strong> <strong>{clock_str}</strong> पर <strong>{worst_node_landmark}</strong> में जलभराव ({int(current_max_d_cm)} सेमी) दर्ज किया गया है। 
-                पंपिंग स्टेशन चालू कर दिए गए हैं। नागरिकों से अनुरोध है कि डॉ. आंबेडकर रोड से बचें और सुरक्षित मार्गों का प्रयोग करें।
+                पंपिंग स्टेशन चालू कर दिए गए हैं। नागरिकों से अनुरोध है कि हिंदमाता जंक्शन से बचें और वैकल्पिक सुरक्षित मार्गों का प्रयोग करें।
             </p>
             <span style='font-size: 0.75rem; color: #94a3b8;'>फ्लडसेंस डेमो प्रणाली (प्रायोगिक प्रोटोटाइप) • प्रभाग: F/South अनुकरण</span>
         </div>
@@ -645,21 +652,24 @@ with tab_metrics:
         st.caption("Evaluated on 46 unseen test storms in data/hindmata using src/ml/evaluate.py (flood threshold = 10 cm).")
         
         metrics_summary = pd.DataFrame([
-            {"Model": "Persistence (No AI)", "Lead Time": "+1 Hour", "MAE (cm)": 0.46, "Precision": "89.0%", "Recall": "86.4%", "F1 Score": 0.88},
-            {"Model": "Persistence (No AI)", "Lead Time": "+2 Hours", "MAE (cm)": 0.88, "Precision": "78.7%", "Recall": "75.0%", "F1 Score": 0.77},
-            {"Model": "Persistence (No AI)", "Lead Time": "+3 Hours", "MAE (cm)": 1.24, "Precision": "69.5%", "Recall": "65.6%", "F1 Score": 0.68},
-            {"Model": "No-Graph Baseline (MLP)", "Lead Time": "+1 Hour", "MAE (cm)": 1.93, "Precision": "0.0%", "Recall": "0.0%", "F1 Score": 0.00},
-            {"Model": "🌟 FloodSense ST-GNN", "Lead Time": "+1 Hour", "MAE (cm)": 1.18, "Precision": "55.7%", "Recall": "91.5%", "F1 Score": 0.69},
-            {"Model": "🌟 FloodSense ST-GNN", "Lead Time": "+2 Hours", "MAE (cm)": 1.74, "Precision": "48.2%", "Recall": "90.3%", "F1 Score": 0.63},
-            {"Model": "🌟 FloodSense ST-GNN", "Lead Time": "+3 Hours", "MAE (cm)": 2.55, "Precision": "40.0%", "Recall": "87.8%", "F1 Score": 0.55},
+            {"Model": "Persistence (No AI)", "Lead Time": "+1 Hour", "MAE (cm)": 0.46, "Precision": "89.0%", "Recall": "86.4%", "Onset Recall": "0.0%", "F1 Score": 0.88},
+            {"Model": "Persistence (No AI)", "Lead Time": "+2 Hours", "MAE (cm)": 0.88, "Precision": "78.7%", "Recall": "75.0%", "Onset Recall": "0.0%", "F1 Score": 0.77},
+            {"Model": "Persistence (No AI)", "Lead Time": "+3 Hours", "MAE (cm)": 1.24, "Precision": "69.5%", "Recall": "65.6%", "Onset Recall": "0.0%", "F1 Score": 0.68},
+            {"Model": "No-Graph MLP (Retrained 12x)", "Lead Time": "+1 Hour", "MAE (cm)": 0.30, "Precision": "90.0%", "Recall": "95.7%", "Onset Recall": "82.1%", "F1 Score": 0.93},
+            {"Model": "No-Graph MLP (Retrained 12x)", "Lead Time": "+2 Hours", "MAE (cm)": 0.77, "Precision": "70.4%", "Recall": "91.8%", "Onset Recall": "78.5%", "F1 Score": 0.80},
+            {"Model": "No-Graph MLP (Retrained 12x)", "Lead Time": "+3 Hours", "MAE (cm)": 1.31, "Precision": "56.4%", "Recall": "87.6%", "Onset Recall": "71.3%", "F1 Score": 0.69},
+            {"Model": "🌟 FloodSense ST-GNN", "Lead Time": "+1 Hour", "MAE (cm)": 1.18, "Precision": "55.7%", "Recall": "91.5%", "Onset Recall": "70.5%", "F1 Score": 0.69},
+            {"Model": "🌟 FloodSense ST-GNN", "Lead Time": "+2 Hours", "MAE (cm)": 1.74, "Precision": "48.2%", "Recall": "90.3%", "Onset Recall": "74.0%", "F1 Score": 0.63},
+            {"Model": "🌟 FloodSense ST-GNN", "Lead Time": "+3 Hours", "MAE (cm)": 2.55, "Precision": "40.0%", "Recall": "87.8%", "Onset Recall": "72.1%", "F1 Score": 0.55},
         ])
         st.dataframe(metrics_summary, hide_index=True, use_container_width=True)
         
         st.markdown("""
-        **Honest Precision / Recall Tradeoff in Municipal Disaster Management:**
-        - **Why ST-GNN prioritizes Recall over F1:** In civic flash flood management, a *false negative* (failing to alert citizens before an underpass drowns) is catastrophic. A *false positive* (precautionary pump startup or traffic standby) costs very little. Therefore, ST-GNN was trained with a **12× flood loss weight** (`flood_weight = 12.0`), resulting in **higher detection recall (>91%) with a safe margin of false alarms (precision ~55.7%)**.
-        - **Why Persistence achieves high F1 during steady states:** Persistence trivially assumes current depth continues ($d_{t+k} = d_t$). During steady conditions and dry intervals, this trivial rule achieves high precision. However, Persistence has **zero lookahead** for sudden cloudburst deluges or tidal gate backwater lockouts.
-        - **Why No-Graph MLP misses floods at +1h (0.0% Recall):** Without spatial message passing across the 140 street drainage conduits, an isolated node MLP fails to propagate upstream conduit runoff to downstream depressions, predicting below the 10 cm flood threshold everywhere.
+        **Honest Precision / Recall Tradeoff & The True Value of Forecasting:**
+        - **Why we do NOT claim ST-GNN beats baselines on MAE or F1:** Persistence trivially assumes current depth continues ($d_{t+k} = d_t$), achieving low MAE and high F1 during dry spells and gradual ponding.
+        - **The Definitive Test — Flood Onset Detection Recall:** Among junctions that are **dry now ($\le 10$ cm) but flood in the next 1–3 hours**, Persistence scores **0.0%** across all lead times. It is completely blind to oncoming floods. In contrast, predictive models anticipate over **70% to 82%** of sudden flood inceptions.
+        - **Higher Detection Recall, More False Alarms:** ST-GNN catches over 9 out of 10 floods (Recall >91%), but gives more false alarms (Precision ~55.7%) because it was trained with a **12× flood loss weight** (`flood_weight = 12.0`). In disaster management, a false alarm (precautionary pump startup) is minor, while a false negative (missed flood) is catastrophic.
+        - **No-Graph MLP Retraining:** When retrained with the identical 12× flood loss penalty, the isolated-node MLP performs strongly on local feature patterns, achieving 71–82% onset recall.
         """)
 
     with col_gauge:
@@ -697,16 +707,18 @@ with tab_about:
     Target Municipal Areas: **Mumbai: Dadar-Hindmata-Parel Catchment** (Primary) & **Kurla-Mithi River Basin** (Scalability Proof).
 
     #### ⚖️ Complete Transparency: What is Real vs. Simulated
+    - **System Classification:** FloodSense is a **prototype decision-support system that recommends and simulates proactive actions**, not an active municipal SCADA controller.
     - **Real Municipal & Geographical Data:**
       - **Street Graph Topology:** Sourced directly from OpenStreetMap (`osmnx`, drive network, simplified intersection clusters).
       - **Topographic Terrain:** Sourced from Copernicus GLO-30 Digital Elevation Model (smoothed over node neighborhood).
-      - **Catchment Drainage Constraints:** Calibrated to historical BRIMSTOWAD specifications (25 mm/h drain capacity, 1.0 m MSL / 3.51 m CD tidal lockout threshold).
-    - **Simulated Components & Scenarios:**
-      - **Monsoon Storm Scenarios:** The interactive scenarios represent synthetic rainfall hyetographs totaling 40 mm, 120 mm, and 250 mm accumulation, calibrated to typical Mumbai monsoon intensities (rather than exact single-day historical reanalysis timestamps).
-      - **Simulated Inundation & Pipe Flow:** Inundation depths and conduit discharges are generated by our high-performance vectorized physical simulator (`simulator.py`).
-      - **Extreme Worst-Case Inundation (~190 cm):** Depths exceeding 100 cm represent a synthetic stress-test worst case (simultaneous 250 mm extreme cloudburst + spring high tide outfall lockout), designed to evaluate algorithm stability at hydraulic capacity limits, not a forecast for a normal monsoon day.
-      - **Before AI (No Action) Baseline:** In our 32.8% reduction benchmark, 'Before AI' explicitly means holding tank pumps are OFF and tidal sluice gates are left fully OPEN to sea backwater.
-      - **Tide Datum Definition:** Port Trust tide levels are measured from Chart Datum (CD). Mean Sea Level (MSL) is +2.51 m CD; outfall inverts are at ~3.51 m CD (+1.0 m MSL). A 3.71 m CD tide equals +1.20 m MSL.
+      - **Drain Capacity (25 mm/h):** The 25 mm/h drain design capacity is derived from public BRIMSTOWAD reports.
+      - **Tide Datum Reference:** Mumbai Port Trust Chart Datum is 2.51 m below Mean Sea Level (MSL = +2.51 m CD, Survey of India datum).
+    - **Engineering Assumptions & Simulated Components:**
+      - **Tidal Lockout Level (1.0 m MSL / 3.51 m CD):** The 1.0 m MSL lockout threshold is our own engineering design assumption (based on typical coastal flap invert elevations), not an official BMC municipal standard.
+      - **Monsoon Storm Scenarios:** The three scenarios represent synthetic rainfall hyetographs totaling 43.5 mm (Light), 104.5 mm (Heavy), and 191.6 mm (Extreme) accumulation with harmonic tides, calibrated to typical Mumbai monsoon intensities.
+      - **Simulated Inundation & Pipe Flow:** Inundation depths and conduit flows are generated by our high-performance vectorized physical simulator (`simulator.py`).
+      - **Extreme Worst-Case Inundation (~190 cm):** Depths exceeding 100 cm represent a synthetic stress-test worst case (simultaneous 191.6 mm cloudburst + spring high tide lockout) designed to evaluate algorithm stability at hydraulic capacity limits, not an average seasonal forecast.
+      - **Dual Baselines:** We evaluate dispatch schedules against both **Baseline 1: Passive Drainage** (pumps OFF, gates OPEN) and **Baseline 2: Current Municipal Practice** (automatic gates + reactive float-switch pumps). On unseen test storms, proactive optimization reduces flood exposure by an average of **9.4% over current practice** and **10.9% over passive drainage**.
     """)
 
 st.markdown("---")

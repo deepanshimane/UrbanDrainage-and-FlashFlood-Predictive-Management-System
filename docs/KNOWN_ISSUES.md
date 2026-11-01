@@ -20,7 +20,7 @@
    - *Result:* `models/kurla_best.pt` trained on Kurla (91 nodes). F1: 0.63 (+1h), Recall: 92.96% (+1h), 91.25% (+2h), 89.63% (+3h).
 3. **Optimizer Implementation:**
    - **Status:** ✅ **RESOLVED**.
-   - *Result:* Rule-based and random search optimizers implemented in `src/opt/optimize.py`, delivering up to 32.8% reduction in flood volume.
+   - *Result:* Rule-based and random search optimizers implemented in `src/opt/optimize.py`, delivering up to 10.3% reduction in flood volume (mean 9.4% over current municipal practice).
 
 ## 👤 Status with Person C (Backend & Dashboard)
 1. **FastAPI Endpoints:**

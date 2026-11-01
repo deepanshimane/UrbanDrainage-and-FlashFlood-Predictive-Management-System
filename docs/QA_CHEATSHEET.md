@@ -19,7 +19,7 @@
 **Answer:** It uses a two-stage approach: first, reactive heuristic rules turn on pumps early when basin fill exceeds 35% and throttle gates if downstream junctions saturate; second, stochastic local search mutates pump on/off time intervals to minimize cumulative flood cost $\int \text{depth} \, dt$.
 
 ### 7. What flood cost reduction does the optimizer achieve?
-**Answer:** Measured on test storms: 29.1% reduction for Light Rain, 32.8% reduction for Heavy Storms ($40.52 \to 27.23\text{ m·h}$), and 14.8% for Extreme Cloudbursts where infrastructure capacity is physically overwhelmed.
+**Answer:** Measured across unseen test storms: proactive dispatch achieves a mean 9.4% flood reduction over Current Municipal Practice (automatic gates + reactive float-switch pumps) and a 10.9% reduction over Passive Drainage (up to 10.3% reduction on individual storms).52 \to 27.23\text{ m·h}$), and 14.8% for Extreme Cloudbursts where infrastructure capacity is physically overwhelmed.
 
 ### 8. What is the definition of a "flooded node"?
 **Answer:** Per our master engineering contract (`CONTRACT.md`), any junction with standing water depth exceeding 0.10 metres (10 cm) is classified as flooded.

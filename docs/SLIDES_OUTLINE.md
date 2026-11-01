@@ -41,7 +41,7 @@
 - **Interventions:** Pre-emptive pump drawdown + protective downstream sluice throttling.
 - **Results:**
   - Light Rain: **[FILL: 29.1% reduction]** (source: `results/scenario_summary.json`).
-  - Heavy Storm: **[FILL: 32.8% reduction]** ($40.52 \to 27.23\text{ m·h}$).
+  - Heavy Storm (Live): $471.3\text{ m·h}$ (Passive) $\to$ $465.8\text{ m·h}$ (Current Practice) $\to$ $463.1\text{ m·h}$ (FloodSense AI). On test storms: **9.4% mean reduction over current practice** (up to 10.3%).
   - Extreme Cloudburst: **[FILL: 14.8% reduction]** ($1189.4 \to 1013.1\text{ m·h}$).
 
 ### Slide 7: Scalability & Real-World Handoff

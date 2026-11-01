@@ -87,7 +87,7 @@ python -m streamlit run dashboard/app.py --server.port 8501
 - **3-Second Executive Status Banner:** Prominent top-of-screen status bar providing instant situation awareness (🚨 Critical Alert, ⚠️ Moderate Warning, 🟢 All Clear) with automated mitigation actions and real street landmark names.
 - **Global Timeline Controller:** Master slider and live clock (`00:00` to `16:00`) that synchronously controls all map layers, risk rankings, and alerts.
 - **Tab 1: 🗺️ Live Situation & AI Prediction:** Pydeck dark-matter flood map with physical depth bands (Ankle-Deep, Knee-Deep, Waist-Deep), pump halo rings, and $+1\text{h}$, $+2\text{h}$, $+3\text{h}$ ST-GNN forecast cards (91.9% recall).
-- **Tab 2: ⚡ Automated Pump & Gate Action:** Before vs. After optimization comparison showing up to 32.8% flood volume reduction, the Mumbai "Tide Story" explainer, and the automated pump dispatch timetable.
+- **Tab 2: ⚡ Automated Pump & Gate Action:** Dual baselines optimization comparison showing proactive dispatch improvement against both Passive Drainage and Current Municipal Practice (9.4% mean reduction across test storms), the Mumbai "Tide Story" explainer, and the automated pump dispatch timetable.
 - **Tab 3: 📢 Civic Alerts & Citizen Broadcast:** Bilingual emergency broadcast cards in English and Hindi (हिंदी) ready for public ward transmission, and prioritized flood hotspot table with 1-click CSV download.
 - **Tab 4: 📊 AI Accuracy & IoT Telemetry:** Benchmark comparison against Persistence and No-Graph baselines ($1.08\text{ cm}$ MAE), plus real-time simulated ultrasonic outfall gauge chart.
 - **Tab 5: ℹ️ Engineering Assumptions & Honesty:** Complete transparency on real OSM/DEM/reanalysis data vs. simulated internal pipe hydraulics.

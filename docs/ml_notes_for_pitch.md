@@ -18,7 +18,7 @@ Simple, bulleted talking points and honest judge answers for our 24-hour hackath
 5. **Pinpoint Error Margin:** On unseen test storms, our Mean Absolute Error (MAE) is only **1.98 cm at +1 hour** and **2.56 cm at +2 hours**—easily distinguishing between a damp street and an impassable flash flood.
 6. **Intelligent Optimizer (Closing the Loop):** Prediction alone doesn't prevent flooding. Our optimizer controls 12 municipal pumps and sluice gates using local search:
    - **Light Scenario (25 mm/h):** **29.1% flood reduction** (2.4 $\rightarrow$ 1.7 metre-hours).
-   - **Heavy Scenario (60 mm/h):** **32.8% flood reduction** (40.5 $\rightarrow$ 27.2 metre-hours).
+   - **Heavy Scenario (60 mm/h):** **9.4% flood reduction over current practice** (mean across test storms; up to 10.3% on individual storms).
    - **Extreme Cloudburst (110 mm/h):** **14.8% flood reduction**, saving **176.3 metre-hours of flooding** and keeping 8 critical junctions dry.
 7. **Pre-emptive Drawdown:** The optimizer turns pumps on *before* the rain peak hits, actively creating buffer storage in lower basins so runoff has room to drain.
 8. **Sub-second Scalability:** Inference runs in **8.0 ms** for 200 nodes and **43.7 ms** for 800 nodes (over 23 updates per second), easily supporting real-time sensor streams and live dashboards.
